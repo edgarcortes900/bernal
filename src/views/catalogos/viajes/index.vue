@@ -531,7 +531,8 @@ async function prepararTimbrado() {
   const tInfo = tarifaMap.value[String(v.Tarifa)]
   const obsTarifa = tInfo?.observaciones ?? ''
   const obsViaje  = typeof v.observaciones === 'string' ? v.observaciones : ''
-  obsInicialesTimbrado.value = String(obsTarifa || obsViaje || '')
+  // Prioridad: primero las del viaje, si no hay usa las de la tarifa
+  obsInicialesTimbrado.value = String(obsViaje || obsTarifa || '')
   await nextTick()
   modalPrepayload.value = true
   console.debug('[Viajes] Abriendo PrepayloadModal con:', obsInicialesTimbrado.value)

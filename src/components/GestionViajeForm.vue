@@ -84,15 +84,56 @@
         </b-form-group>
       </b-col>
     </b-row>
-
+    <!-- 🔹 Observaciones del viaje (prepayload) -->
+    <b-form-group label="Observaciones del viaje (prepayload)">
+      <b-form-textarea
+        v-model="form.observaciones"
+        rows="4"
+        placeholder="campo: valor&#10;campo2: valor2"
+        autocomplete="off"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false"
+      />
+      <div class="mt-2 d-flex flex-wrap gap-2">
+        <b-button
+          size="sm"
+          variant="outline-primary"
+          @click="showObsEditor = true"
+          title="Editar como pares campo:valor"
+        >
+          Editar como conceptos
+        </b-button>
+        <b-button
+          size="sm"
+          variant="outline-secondary"
+          :disabled="!tarifaObs"
+          @click="usarObsTarifa"
+          title="Sobrescribir con observaciones de la tarifa"
+        >
+          Usar las de la tarifa
+        </b-button>
+      </div>
+      <small v-if="tarifaObs" class="text-muted d-block mt-1">
+        Observaciones de tarifa detectadas:
+        <code style="white-space: pre-wrap;">{{ tarifaObs }}</code>
+      </small>
+    </b-form-group>
     <div class="d-flex justify-content-end">
       <b-button variant="primary" @click="guardarViaje">Guardar</b-button>
     </div>
+        <!-- Modal editor de conceptos (usa tu componente existente) -->
+    <TimbradoPrepayloadModal
+      v-model="showObsEditor"
+      :observaciones-iniciales="form.observaciones || tarifaObs"
+      @save="onObsSave"
+    />
   </b-form>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import TimbradoPrepayloadModal from './TimbradoPrepayloadModal.vue'
 
 interface Props {
   rutaBackend: string
@@ -120,7 +161,7 @@ const clientesSelect = ref<any[]>([])
 const razonesSociales = ref<any[]>([])
 const direcciones = ref<any[]>([])
 const rutas = ref<any[]>([])
-const tarifas = ref<any[]>([])
+ const tarifas = ref<any[]>([])
 const operadoresSelect = ref<any[]>([])
 const unidadesSelect   = ref<any[]>([])
 
@@ -142,15 +183,15 @@ const dirMap = computed(() =>
 )
 const razonesSocialesOptions = computed(()=> razonesSociales.value.map((r:any)=>({...r, __label: rsMap.value[String(r.ItemId)]})))
 const rutasOptionsFiltradas = computed(()=> !form.Cliente ? [] : rutas.value.filter((r:any)=> String(r.Cliente)===String(form.Cliente)))
-const tarifasOptionsFiltradas = computed(()=>{
-  const all = tarifas.value.map((t:any)=>({
-    value: String(t.ItemId),
-    text: `${dirMap.value[String(t.origenccp)]||t.origenccp} → ${dirMap.value[String(t.destinoccp)]||t.destinoccp}`,
-    RazonSocial: String(t.RazonSocial || '')
-  }))
-  if (!form.RazonSocial) return all
-  return all.filter(x=> x.RazonSocial === String(form.RazonSocial))
-})
+ const tarifasOptionsFiltradas = computed(()=>{
+   const all = tarifas.value.map((t:any)=>({
+     value: String(t.ItemId),
+     text: `${dirMap.value[String(t.origenccp)]||t.origenccp} → ${dirMap.value[String(t.destinoccp)]||t.destinoccp}`,
+     RazonSocial: String(t.RazonSocial || '')
+   }))
+   if (!form.RazonSocial) return all
+   return all.filter(x=> x.RazonSocial === String(form.RazonSocial))
+ })
 
 /* form */
 const form = reactive({
@@ -176,10 +217,10 @@ async function onClienteChange(){
   form.RazonSocial=''; form.Ruta=''; form.Tarifa=''
   if (form.Cliente) { await Promise.all([cargarRazonesSociales(form.Cliente), cargarDirecciones(form.Cliente)]) }
 }
-async function onRutaChange(){
-  form.Tarifa=''
-  if (form.Ruta && form.Cliente) await cargarTarifasRutaCliente(form.Ruta, form.Cliente)
-}
+ async function onRutaChange(){
+   form.Tarifa=''
+   if (form.Ruta && form.Cliente) await cargarTarifasRutaCliente(form.Ruta, form.Cliente)
+ }
 function onRazonSocialChange(){
   if (form.Tarifa) {
     const ok = tarifasOptionsFiltradas.value.some((t:any)=> String(t.value)===String(form.Tarifa))
@@ -225,4 +266,22 @@ onMounted(async ()=>{
     if (form.Ruta && form.Cliente) await cargarTarifasRutaCliente(form.Ruta, form.Cliente)
   }
 })
+
+
+
+
+ 
+/* 🔹 Editor/observaciones */
+const showObsEditor = ref(false)
+const tarifaObs = computed<string>(() => {
+  const t = tarifas.value.find((tt:any) => String(tt.ItemId) === String(form.Tarifa))
+  return typeof t?.observaciones === 'string' ? t.observaciones : ''
+})
+function usarObsTarifa(){ if (tarifaObs.value) form.observaciones = tarifaObs.value }
+function onObsSave(observacionesStr: string /*, obj:Record<string,string> */){
+  form.observaciones = observacionesStr || ''
+  showObsEditor.value = false
+}
+
+
 </script>
