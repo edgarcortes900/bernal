@@ -3,11 +3,19 @@
     <b-col xl="12">
       <!-- Título y botones -->
       <b-row class="align-items-center mb-3">
-        <b-col cols="8"><h4 class="mb-0">Razones Sociales del Cliente</h4></b-col>
-        <b-col cols="4" class="text-end">
-          <b-button variant="primary" class="me-2" @click="agregarRazonSocial"><i class="ri-add-line me-1" />Agregar</b-button>
-          <b-button variant="warning" class="me-2" :disabled="!razonActivaId" @click="editarRazonSeleccionada"><i class="ri-pencil-line me-1" />Editar</b-button>
-          <b-button variant="danger" :disabled="!razonActivaId" @click="eliminarRazonSeleccionada"><i class="ri-delete-bin-line me-1" />Eliminar</b-button>
+        <b-col cols="6">
+          <h4 class="mb-0">Razones Sociales de la Planta</h4>
+        </b-col>
+        <b-col cols="6" class="text-end">
+          <b-button variant="primary" class="me-2" @click="agregarRazonSocial"><i
+              class="ri-add-line me-1" />Agregar</b-button>
+          <b-button variant="warning" class="me-2" :disabled="!razonActivaId" @click="editarRazonSeleccionada"><i
+              class="ri-pencil-line me-1" />Editar</b-button>
+          <b-button variant="danger" class="me-2" :disabled="!razonActivaId" @click="eliminarRazonSeleccionada"><i
+              class="ri-delete-bin-line me-1" />Eliminar</b-button>
+               <b-button variant="success" class="me-2" :disabled="filteredItems.length===0" @click="exportarVisibleExcel">
+              <i class="ri-file-excel-2-line me-1" /> Exportar Excel
+            </b-button>
         </b-col>
       </b-row>
 
@@ -25,19 +33,9 @@
 
       <!-- Tabla -->
       <UIComponentCard title="Razones Sociales">
-        <EasyDataTable
-          border-cell
-          :headers="headers"
-          :items="filteredItems"
-          :search="false"
-          :rows-per-page="10000000"
-          :body-row-class-name="getRowClass"
-          :sort-by="sortBy"
-          :sort-type="sortType"
-          :hide-footer="true"
-          @update:sort-by="sortBy = $event"
-          @update:sort-type="sortType = $event"
-        >
+        <EasyDataTable border-cell :headers="headers" :items="filteredItems" :search="false" :rows-per-page="10000000"
+          :body-row-class-name="getRowClass" :sort-by="sortBy" :sort-type="sortType" :hide-footer="true"
+          @update:sort-by="sortBy = $event" @update:sort-type="sortType = $event">
           <template v-for="col in columnasSeleccionables" #[`item-${col}`]="row">
             <div @click="seleccionarRazon(row)">{{ row[col] }}</div>
           </template>
@@ -47,18 +45,14 @@
   </b-row>
 
   <!-- Modal de edición -->
- <FormularioSatClientes
-  :id="FormularioRazonSocial.id"
-  :mostrar="modalEditar"
-  @update:mostrar="modalEditar = $event"
-  @guardar="onGuardarRazonSocial"
-  @cancelar="onCancelarRazonSocial"
-/>
+  <FormularioSatClientes :id="FormularioRazonSocial.id" :mostrar="modalEditar" @update:mostrar="modalEditar = $event"
+    @guardar="onGuardarRazonSocial" @cancelar="onCancelarRazonSocial" />
 
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import * as XLSX from 'xlsx'
 import useVuelidate from '@vuelidate/core'
 import { required } from '@vuelidate/validators'
 import UIComponentCard from '@/components/UIComponentCard.vue'
@@ -89,6 +83,7 @@ const modalEditar = ref(false)
 
 const razonActual = reactive({
   ItemId: 0,
+  IdContpaq: '',
   Cliente: '',
   RFC: '',
   Nombre: '',
@@ -100,6 +95,7 @@ const razonActual = reactive({
 })
 
 const rules = {
+  IdContpaq: { required },
   RFC: { required },
   Nombre: { required },
   Calle: { required },
@@ -108,6 +104,7 @@ const rules = {
 const v$ = useVuelidate(rules, razonActual)
 
 const headers = [
+  { text: 'Id Contpaq', value: 'IdContpaq' },
   { text: 'RFC', value: 'RFC' },
   { text: 'Nombre', value: 'Nombre' },
   { text: 'Calle', value: 'Calle' },
@@ -138,7 +135,7 @@ function agregarRazonSocial() {
     row_id: 0,
     id_cliente: props.clienteId,
     nuevocliente: true,
-    mostrar:true
+    mostrar: true
   })
   modalEditar.value = true
 }
@@ -173,7 +170,7 @@ function editarRazonSeleccionada() {
       row_id: razon.ItemId,
       id_cliente: razon.Cliente,
       nuevocliente: false,
-      mostrar:true
+      mostrar: true
     })
     modalEditar.value = true
   }
@@ -191,9 +188,9 @@ function onGuardarRazonSocial(data: any) {
 }
 function guardarNuevaRazonSocial(data: any) {
   data.usuario = usuario.userData.Username;
-   data.Cliente = props.clienteId;
+  data.Cliente = props.clienteId;
   console.log("🚀 ~ guardarNuevaRazonSocial ~ data:", data)
-  
+
   fetch(`${ruta_backend}/api/razones_sociales/insert`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -212,7 +209,7 @@ function guardarNuevaRazonSocial(data: any) {
 }
 function actualizarRazonSocial(data: any) {
   data.usuario = usuario.userData.Username
- 
+
   fetch(`${ruta_backend}/api/razones_sociales/update`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -280,12 +277,64 @@ async function handleSubmit() {
   }
 }
 
+/** 
+ * Exporta a .xlsx lo que está visible en la tabla:
+ * - Filas: `filteredItems`
+ * - Columnas: `headers` (orden y títulos)
+ */
+function exportarVisibleExcel() {
+  // 1) Si no hay datos, nada que hacer
+  if (!filteredItems.value || filteredItems.value.length === 0) return
+
+  // 2) Define columnas visibles (en orden) y sus títulos bonitos
+  const cols = headers.map(h => ({ key: h.value as string, title: h.text }))
+
+  // 3) Mapea las filas visibles para que el Excel tenga encabezados con `text`
+  const dataForExcel = filteredItems.value.map((row: Record<string, any>) => {
+    const out: Record<string, any> = {}
+    cols.forEach(c => { out[c.title] = row[c.key] ?? '' })
+    return out
+  })
+
+  // 4) Crea worksheet y autosize de columnas
+  const ws = XLSX.utils.json_to_sheet(dataForExcel, { skipHeader: false })
+
+  // Autosize: calcula el ancho en función del contenido más largo
+  const colWidths = cols.map(c => {
+    const headerLen = String(c.title).length
+    const maxCellLen = dataForExcel.reduce((max, r) => {
+      const v = r[c.title]
+      const len = v == null ? 0 : String(v).length
+      return Math.max(max, len)
+    }, 0)
+    // margen + ancho mínimo agradable
+    const width = Math.max(10, Math.min(60, Math.ceil((Math.max(headerLen, maxCellLen) + 2))))
+    return { wch: width }
+  })
+  ws['!cols'] = colWidths
+
+  // 5) Crea workbook y escribe archivo
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Clientes visibles')
+
+  const fecha = new Date()
+  const yyyy = fecha.getFullYear()
+  const mm = String(fecha.getMonth() + 1).padStart(2, '0')
+  const dd = String(fecha.getDate()).padStart(2, '0')
+  const hh = String(fecha.getHours()).padStart(2, '0')
+  const mi = String(fecha.getMinutes()).padStart(2, '0')
+  const ss = String(fecha.getSeconds()).padStart(2, '0')
+
+  const filename = `razones_sociales_${yyyy}${mm}${dd}_${hh}${mi}${ss}.xlsx`
+  XLSX.writeFile(wb, filename, { bookType: 'xlsx' })
+}
+
 onMounted(async () => {
   try {
     const res = await fetch(`${ruta_backend}/api/razones_sociales/read?clienteId=${props.clienteId}`)
     const data = await res.json()
     console.log("🚀 ~ onMounted ~ data:", data)
-    
+
     if (!data.error) {
 
       razones.value = data.response
@@ -301,9 +350,16 @@ function getRowClass(item: any): string {
 </script>
 
 <style scoped>
+.card-body {
+  height: 60vh;
+  position: relative;
+  overflow-y: auto;
+}
+
 tr.fila-activa td {
   background-color: #ffeeba !important;
 }
+
 tr:hover {
   cursor: pointer;
 }

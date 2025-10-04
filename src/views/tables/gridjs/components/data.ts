@@ -23,7 +23,7 @@ export const remoteUnidadesTableOptions = {
   sort: true,
   search: true,
   server: {
-    url: `${ruta_backend}api/unidades/read/`, // Ajusta a tu API
+    url: `${ruta_backend}/api/unidades/read/`, // Ajusta a tu API
     then: (data: { error: boolean; response: any[] })  => data.response.map((unidad: any) => [
       unidad.NumUnidad,
       unidad.Modelo,

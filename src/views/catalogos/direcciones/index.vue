@@ -3,11 +3,14 @@
     <b-col xl="12">
       <!-- Título y botones -->
       <b-row class="align-items-center mb-3">
-        <b-col cols="8"><h4 class="mb-0">Direcciones del Cliente</h4></b-col>
-        <b-col cols="4" class="text-end">
+        <b-col cols="6"><h4 class="mb-0">Direcciones de la Planta</h4></b-col>
+        <b-col cols="6" class="text-end">
           <b-button variant="primary" class="me-2" @click="agregarDireccion"><i class="ri-add-line me-1" />Agregar</b-button>
           <b-button variant="warning" class="me-2" :disabled="!direccionActivaId" @click="editarDireccionSeleccionada"><i class="ri-pencil-line me-1" />Editar</b-button>
-          <b-button variant="danger" :disabled="!direccionActivaId" @click="eliminarDireccionSeleccionada"><i class="ri-delete-bin-line me-1" />Eliminar</b-button>
+          <b-button variant="danger" class="me-2" :disabled="!direccionActivaId" @click="eliminarDireccionSeleccionada"><i class="ri-delete-bin-line me-1" />Eliminar</b-button>
+         <b-button variant="success" class="me-2" :disabled="filteredItems.length===0" @click="exportarVisibleExcel">
+              <i class="ri-file-excel-2-line me-1" /> Exportar Excel
+            </b-button>
         </b-col>
       </b-row>
 
@@ -47,7 +50,7 @@
   </b-row>
 
   <!-- Modal de edición -->
-  <FormularioDireccionCliente
+  <FormDireccionClient
     :id="formularioDireccion.id"
     :mostrar="modalEditar"
     @update:mostrar="modalEditar = $event"
@@ -58,12 +61,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import * as XLSX from 'xlsx'
 import UIComponentCard from '@/components/UIComponentCard.vue'
 import EasyDataTable from 'vue3-easy-data-table'
 import { ruta_backend } from '@/helpers/api'
 import { useSessionStorage } from '@vueuse/core'
 import type { User } from '@/types/auth'
-import FormularioDireccionCliente from '../../../components/FormularioDireccionCliente.vue'
+import FormDireccionClient from '../../../components/FormularioDireccionCliente.vue'
 
 const props = defineProps<{ clienteId: number }>()
 const user = useSessionStorage<User | any>('RASKET_VUE_USER', null)
@@ -224,6 +228,58 @@ function getRowClass(item: any): string {
   return direccionActivaId.value === item.ItemId ? 'fila-activa' : ''
 }
 
+/** 
+ * Exporta a .xlsx lo que está visible en la tabla:
+ * - Filas: `filteredItems`
+ * - Columnas: `headers` (orden y títulos)
+ */
+function exportarVisibleExcel() {
+  // 1) Si no hay datos, nada que hacer
+  if (!filteredItems.value || filteredItems.value.length === 0) return
+
+  // 2) Define columnas visibles (en orden) y sus títulos bonitos
+  const cols = headers.map(h => ({ key: h.value as string, title: h.text }))
+
+  // 3) Mapea las filas visibles para que el Excel tenga encabezados con `text`
+  const dataForExcel = filteredItems.value.map((row: Record<string, any>) => {
+    const out: Record<string, any> = {}
+    cols.forEach(c => { out[c.title] = row[c.key] ?? '' })
+    return out
+  })
+
+  // 4) Crea worksheet y autosize de columnas
+  const ws = XLSX.utils.json_to_sheet(dataForExcel, { skipHeader: false })
+
+  // Autosize: calcula el ancho en función del contenido más largo
+  const colWidths = cols.map(c => {
+    const headerLen = String(c.title).length
+    const maxCellLen = dataForExcel.reduce((max, r) => {
+      const v = r[c.title]
+      const len = v == null ? 0 : String(v).length
+      return Math.max(max, len)
+    }, 0)
+    // margen + ancho mínimo agradable
+    const width = Math.max(10, Math.min(60, Math.ceil((Math.max(headerLen, maxCellLen) + 2))))
+    return { wch: width }
+  })
+  ws['!cols'] = colWidths
+
+  // 5) Crea workbook y escribe archivo
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Clientes visibles')
+
+  const fecha = new Date()
+  const yyyy = fecha.getFullYear()
+  const mm = String(fecha.getMonth() + 1).padStart(2, '0')
+  const dd = String(fecha.getDate()).padStart(2, '0')
+  const hh = String(fecha.getHours()).padStart(2, '0')
+  const mi = String(fecha.getMinutes()).padStart(2, '0')
+  const ss = String(fecha.getSeconds()).padStart(2, '0')
+
+  const filename = `direcciones_${yyyy}${mm}${dd}_${hh}${mi}${ss}.xlsx`
+  XLSX.writeFile(wb, filename, { bookType: 'xlsx' })
+}
+
 onMounted(async () => {
   try {
     const res = await fetch(`${ruta_backend}/api/direcciones/read?clienteId=${props.clienteId}`)
@@ -238,6 +294,11 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.card-body {
+  height: 60vh;
+  position: relative;
+  overflow-y: auto;
+}
 tr.fila-activa td {
   background-color: #ffeeba !important;
 }

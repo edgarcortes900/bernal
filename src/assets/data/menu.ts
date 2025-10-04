@@ -28,21 +28,33 @@ export const MENU_ITEMS: MenuItemType[] = [
 
     },
     {
+        key: 'viajes',
+        label: 'Viajes',
+        isTitle: true,
+    },
+    {
+        key: 'catalogos-viajes',
+        icon: 'solar:users-group-rounded-bold-duotone',
+        label: 'Viajes',
+        route: { name: 'catalogos.viajes' },
+
+    },
+    {
         key: 'catalogos',
         label: 'Catálogos',
         isTitle: true,
     },
-    {
-        key: 'catalogos-rutas',
-        icon: 'solar:graph-up-bold',
-        label: 'Rutas',
-        route: { name: 'catalogos.rutas' },
+    // {
+    //     key: 'catalogos-rutas',
+    //     icon: 'solar:graph-up-bold',
+    //     label: 'Rutas',
+    //     route: { name: 'catalogos.rutas' },
 
-    },
+    // },
     {
         key: 'catalogos-clientes',
         icon: 'solar:users-group-rounded-bold-duotone',
-        label: 'Clientes',
+        label: 'Plantas',
         route: { name: 'catalogos.clientes' },
 
     },
@@ -65,6 +77,20 @@ export const MENU_ITEMS: MenuItemType[] = [
         icon: 'solar:lock-keyhole-bold',
         label: 'Seguros',
         route: { name: 'catalogos.seguros' },
+
+    },
+    {
+        key: 'catalogos-ciudades',
+        icon: 'iconamoon:location-pin-fill',
+        label: 'Ciudades',
+        route: { name: 'catalogos.ciudades' },
+
+    },
+    {
+        key: 'catalogos-comisiones',
+        icon: 'clarity:dollar-solid',
+        label: 'Comisiones',
+        route: { name: 'catalogos.comisiones' },
 
     },
     // {

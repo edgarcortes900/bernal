@@ -30,7 +30,18 @@ const unidadesRoutes = [
     component: () => import('@/views/catalogos/unidades/index.vue')
   }
 ]
-const segurosRoutes = [
+const comisionesRoutes = [
+  {
+    path: '/unidades',
+    name: 'catalogos.comisiones',
+    meta: {
+      title: setTitle('Comisiones'),
+      authRequired: true
+    },
+    component: () => import('@/views/catalogos/comisiones/index.vue')
+  }
+]
+const segurosRoutes= [
   {
     path: '/seguros',
     name: 'catalogos.seguros',
@@ -39,6 +50,17 @@ const segurosRoutes = [
       authRequired: true
     },
     component: () => import('@/views/catalogos/seguros/index.vue')
+  }
+]
+const ciudadesRoutes = [
+  {
+    path: '/ciudades',
+    name: 'catalogos.ciudades',
+    meta: {
+      title: setTitle('Ciudades'),
+      authRequired: true
+    },
+    component: () => import('@/views/catalogos/ciudades/index.vue')
   }
 ]
 const rutasRoutes = [
@@ -50,6 +72,28 @@ const rutasRoutes = [
       authRequired: true
     },
     component: () => import('@/views/catalogos/rutas/index.vue')
+  }
+]
+const viajesRoutes = [
+  {
+    path: '/viajes',
+    name: 'catalogos.viajes',
+    meta: {
+      title: setTitle('Viajes'),
+      authRequired: true
+    },
+    component: () => import('@/views/catalogos/viajes/index.vue')
+  }
+]
+const pruebaRoutes = [
+  {
+    path: '/prueba',
+    name: 'catalogos.prueba',
+    meta: {
+      title: setTitle('Prueba'),
+      authRequired: true
+    },
+    component: () => import('@/views/catalogos/seguros/prueba.vue')
   }
 ]
 const operadoresRoutes = [
@@ -85,9 +129,9 @@ const direccionesRoutes = [
     component: () => import('@/views/catalogos/direcciones/index.vue')
   }
 ]
-const clientesRoutes = [
+const plantasRoutes = [
   {
-    path: '/clientes',
+    path: '/plantas',
     name: 'catalogos.clientes',
     meta: {
       title: setTitle('Clientes'),
@@ -863,4 +907,4 @@ const mapsRoutes = [
     }
 ];
 
-export const allRoutes = [...rutasRoutes,...bienvenidaRoutes,...unidadesRoutes,...operadoresRoutes,...segurosRoutes,...clientesRoutes,...razones_socialesRoutes,...direccionesRoutes,...dashboardRoutes, ...pagesRoutes, ...errorRoutes, ...authRoutes, ...appsRoutes, ...uiRoutes, ...advancedUIRoutes, ...chartsRoutes, ...formRoutes, ...tablesRoutes, ...iconsRoutes, ...mapsRoutes];
+export const allRoutes = [...rutasRoutes,...pruebaRoutes,...viajesRoutes,...bienvenidaRoutes,...unidadesRoutes,...operadoresRoutes,...segurosRoutes,...comisionesRoutes,...ciudadesRoutes,...plantasRoutes,...razones_socialesRoutes,...direccionesRoutes,...dashboardRoutes, ...pagesRoutes, ...errorRoutes, ...authRoutes, ...appsRoutes, ...uiRoutes, ...advancedUIRoutes, ...chartsRoutes, ...formRoutes, ...tablesRoutes, ...iconsRoutes, ...mapsRoutes];

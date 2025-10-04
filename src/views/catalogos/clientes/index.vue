@@ -2,23 +2,28 @@
   <VerticalLayout>
     <b-row>
       <b-col xl="12">
+        <!-- Encabezado y botones -->
         <b-row class="align-items-center mb-3">
-          <b-col cols="8">
-            <h4 class="mb-0">Gestión de Clientes</h4>
+          <b-col cols="6">
+            <h4 class="mb-0">Gestión de Plantas</h4>
           </b-col>
-          <b-col cols="4" class="text-end">
+          <b-col cols="6" class="text-end">
             <b-button variant="primary" class="me-2" @click="agregarCliente">
               <i class="ri-add-line me-1" /> Agregar
             </b-button>
-            <b-button variant="warning" class="me-2" :disabled="!clienteActivoId" @click="editarClienteSeleccionado">
-              <i class="ri-pencil-line me-1" /> Editar
-            </b-button>
-            <b-button variant="danger" :disabled="!clienteActivoId" @click="eliminarClienteSeleccionado">
-              <i class="ri-delete-bin-line me-1" /> Eliminar
+   <b-button variant="warning" class="me-2" :disabled="!haySeleccion" @click="editarClienteSeleccionado">
+  <i class="ri-pencil-line me-1" /> Editar
+</b-button>
+<b-button variant="danger" class="me-2" :disabled="!haySeleccion" @click="eliminarClienteSeleccionado">
+  <i class="ri-delete-bin-line me-1" /> Eliminar
+</b-button>
+            <b-button variant="success" class="me-2" :disabled="filteredItems.length===0" @click="exportarVisibleExcel">
+              <i class="ri-file-excel-2-line me-1" /> Exportar Excel
             </b-button>
           </b-col>
         </b-row>
 
+        <!-- Filtros -->
         <b-row class="mb-3">
           <b-col cols="3">
             <label>Campo de búsqueda:</label>
@@ -30,9 +35,11 @@
           </b-col>
         </b-row>
 
-        <UIComponentCard id="tabla-clientes" title="Clientes">
+        <!-- Tabla -->
+        <UIComponentCard id="tabla-clientes" title="Plantas">
           <EasyDataTable
             border-cell
+            item-key="ItemId"
             :headers="headers"
             :items="filteredItems"
             :search="false"
@@ -43,55 +50,46 @@
             :hide-footer="true"
             @update:sort-by="sortBy = $event"
             @update:sort-type="sortType = $event"
-          >
-            <template v-for="col in columnasSeleccionables" #[`item-${col}`]="item">
-              <div @click="seleccionarCliente(item)">{{ item[col] }}</div>
-            </template>
-          </EasyDataTable>
+            @click-row="seleccionarCliente"
+          />
+          <!-- OJO: sin slots personalizados para evitar el crash -->
         </UIComponentCard>
       </b-col>
     </b-row>
-    <b-modal hide-footer v-model="modalEditar" title="Formulario de Cliente" size="xl" centered>
-      <b-tabs v-model:number="activeTab">
-        <b-tab title="Cliente">
-          <b-form @submit.prevent="handleSubmit">
-            <b-form-group label="Nombre" >
-              <b-form-input v-model="v$.value.Nombre.$model" :state="!v$.value.Nombre.$dirty ? null : !v$.value.Nombre.$invalid" />
-            </b-form-group>
 
-            <b-col cols="12 mt-3">
-              <b-button variant="secondary" style="float: right;" @click="modalEditar = false">Cancelar</b-button>
-              <b-button variant="primary" style="float: right;margin-right: 3px;" type="submit">Guardar</b-button>
-            </b-col>
+    <!-- Modal -->
+    <b-modal hide-footer v-model="modalEditar" title="Formulario de Planta" size="xl" centered>
+      <b-tabs v-model:number="activeTab">
+        <b-tab key="tab-planta" title="Planta">
+          <b-form @submit.prevent="handleSubmit">
+            <b-form-group label="Nombre">
+              <b-form-input v-model="clienteActual.Nombre" />
+            </b-form-group>
+            <div class="text-end">
+              <b-button variant="secondary" class="me-2" @click="modalEditar = false">Cancelar</b-button>
+              <b-button variant="primary" type="submit">Guardar</b-button>
+            </div>
           </b-form>
         </b-tab>
-        <b-tab title="Razones Sociales">
-          <ModuloRazonSocial v-if="modalEditar && clienteActual.ItemId > 0" :clienteId="clienteActual.ItemId" />
-          <div v-else class="text-muted">Guarda el cliente primero para gestionar sus razones sociales.</div>
+
+        <!-- Tabs ocultos cuando es nuevo -->
+        <b-tab v-if="clienteActual.ItemId > 0" key="tab-razones" title="Razones Sociales">
+          <ModuloRazonSocial :clienteId="clienteActual.ItemId" />
         </b-tab>
-        <b-tab title="Direcciones">
-          <ModuloDirecciones v-if="modalEditar && clienteActual.ItemId > 0" :clienteId="clienteActual.ItemId" />
-          <div v-else class="text-muted">Guarda el cliente primero para gestionar sus razones sociales.</div>
+        <b-tab v-if="clienteActual.ItemId > 0" key="tab-direcciones" title="Direcciones">
+          <ModuloDirecciones :clienteId="clienteActual.ItemId" />
+        </b-tab>
+        <b-tab v-if="clienteActual.ItemId > 0" key="tab-rutas" title="Rutas">
+          <ModuloRutas :cliente-id="clienteActual.ItemId" />
         </b-tab>
       </b-tabs>
     </b-modal>
-    <!-- <b-modal hide-footer v-model="modalEditar" title="Formulario de Cliente" centered>
-      <b-form @submit.prevent="handleSubmit">
-        <b-form-group label="Nombre">
-          <b-form-input v-model="v$.Nombre.$model" :state="!v$.Nombre.$dirty ? null : !v$.Nombre.$invalid" />
-        </b-form-group>
-
-        <b-col cols="12 mt-3">
-          <b-button variant="secondary" style="float: right;" @click="modalEditar = false">Cancelar</b-button>
-          <b-button variant="primary" style="float: right;margin-right: 3px;" type="submit">Guardar</b-button>
-        </b-col>
-      </b-form>
-    </b-modal> -->
   </VerticalLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted, reactive, nextTick } from 'vue'
+import * as XLSX from 'xlsx'
 import { useVuelidate } from '@vuelidate/core'
 import { required } from '@vuelidate/validators'
 import VerticalLayout from '@/layouts/VerticalLayout.vue'
@@ -104,13 +102,19 @@ import type { Header, Item } from 'vue3-easy-data-table'
 import type { User } from '@/types/auth'
 import ModuloRazonSocial from '@/views/catalogos/razones_sociales/index.vue'
 import ModuloDirecciones from '@/views/catalogos/direcciones/index.vue'
+import ModuloRutas from '@/views/catalogos/rutas/index.vue'
+const haySeleccion = computed(() => Number(clienteActivoId.value) > 0)
+
+/* Estado */
 const activeTab = ref(0)
+const modalEditar = ref(false)
+const clienteActivoId = ref<number | null>(null)
+
+/* Usuario */
 const user = useSessionStorage<User | any>('RASKET_VUE_USER', null)
 const usuario = JSON.parse(user.value)
 
-const clienteActivoId = ref<number | null>(null)
-const modalEditar = ref(false)
-
+/* Modelo */
 const clienteActual = reactive({
   ItemId: 0,
   Nombre: '',
@@ -119,17 +123,12 @@ const clienteActual = reactive({
   edito: ''
 })
 
-const rules = computed(() => ({
-  Nombre: { required },
-}))
+/* Vuelidate: solo en handleSubmit */
+const rules = { Nombre: { required } }
+const v$ = useVuelidate(rules, clienteActual)
 
-// const v$ = useVuelidate(rules, clienteActual)
-const v$ = computed(() => useVuelidate(rules, clienteActual))
-
-
-const headers: Header[] = [
-  { text: 'Cliente', value: 'Nombre', sortable: true },
-]
+/* Tabla */
+const headers: Header[] = [{ text: 'Planta', value: 'Nombre', sortable: true }]
 const columnasSeleccionables = headers.map(h => h.value)
 const items = ref<Item[]>([])
 const sortBy = ref('Nombre')
@@ -139,75 +138,112 @@ const searchValue = ref('')
 
 const filteredItems = computed(() => {
   if (!searchValue.value) return items.value
-  return items.value.filter(item => {
-    const val = item[searchField.value]?.toString().toLowerCase()
+  return items.value.filter((row: any) => {
+    const val = row?.[searchField.value]?.toString().toLowerCase()
     return val?.includes(searchValue.value.toLowerCase())
   })
 })
 
-function seleccionarCliente(item: any) {
-  clienteActivoId.value = clienteActivoId.value === item.ItemId ? null : item.ItemId
+/* Excel */
+function exportarVisibleExcel() {
+  if (!filteredItems.value || filteredItems.value.length === 0) return
+  const cols = headers.map(h => ({ key: h.value as string, title: h.text }))
+  const dataForExcel = filteredItems.value.map((row: Record<string, any>) => {
+    const out: Record<string, any> = {}
+    cols.forEach(c => { out[c.title] = row[c.key] ?? '' })
+    return out
+  })
+  const ws = XLSX.utils.json_to_sheet(dataForExcel, { skipHeader: false })
+  ws['!cols'] = cols.map(c => {
+    const headerLen = String(c.title).length
+    const maxCellLen = dataForExcel.reduce((max, r) => {
+      const v = r[c.title]
+      const len = v == null ? 0 : String(v).length
+      return Math.max(max, len)
+    }, 0)
+    return { wch: Math.max(10, Math.min(60, Math.ceil((Math.max(headerLen, maxCellLen) + 2)))) }
+  })
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Plantas visibles')
+  const d = new Date(), pad = (n:number)=>String(n).padStart(2,'0')
+  XLSX.writeFile(wb, `plantas_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.xlsx`, { bookType: 'xlsx' })
 }
 
+/* Selección */
+function seleccionarCliente(row: any) {
+  if (!row) return
+  // fuerza número; si no existe, deja 0
+  clienteActivoId.value = Number(row.ItemId) || 0
+}
+
+
+/* Nuevo */
 function agregarCliente() {
-  Object.assign(clienteActual, {
-    ItemId: 0,
-    Nombre: '',
-    Activo: 1,
-    agrego: ''
-  })
+  Object.assign(clienteActual, { ItemId: 0, Nombre: '', Activo: 1, agrego: '' })
+  activeTab.value = 0
   modalEditar.value = true
 }
 
+/* Editar */
 function editarClienteSeleccionado() {
-  const cliente = items.value.find(i => i.ItemId === clienteActivoId.value)
-  if (cliente) {
-    Object.assign(clienteActual, cliente)
+  const registro: any = items.value.find((i: any) => i.ItemId === clienteActivoId.value)
+  if (registro) {
+    Object.assign(clienteActual, registro)
+    activeTab.value = 0
     modalEditar.value = true
   }
 }
 
+/* Eliminar */
 async function eliminarClienteSeleccionado() {
   if (!clienteActivoId.value) return
   await fetch(`${ruta_backend}/api/clientes/delete?ItemId=${clienteActivoId.value}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ItemId: clienteActivoId.value, elimino:usuario.userData.Username})
+    body: JSON.stringify({ ItemId: clienteActivoId.value, elimino: usuario.userData.Username })
   })
-  items.value = items.value.filter(i => i.ItemId !== clienteActivoId.value)
+  items.value = (items.value as any[]).filter((i: any) => i.ItemId !== clienteActivoId.value)
   clienteActivoId.value = null
 }
 
+/* Guardar + seleccionar + scroll */
 async function handleSubmit() {
-  const valid = await v$.value.value.$validate()
+  const valid = await v$?.value?.$validate?.()
   if (!valid) return
 
   const url = clienteActual.ItemId === 0
     ? `${ruta_backend}/api/clientes/insert`
-    : `${ruta_backend}/api/clientes/update?Id=${clienteActual.ItemId}`;
-    if(clienteActual.ItemId == 0) clienteActual.agrego = usuario.userData.Username;
-    else clienteActual.edito = usuario.userData.Username;
-  
+    : `${ruta_backend}/api/clientes/update?Id=${clienteActual.ItemId}`
+  if (clienteActual.ItemId === 0) clienteActual.agrego = usuario.userData.Username
+  else clienteActual.edito = usuario.userData.Username
 
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(clienteActual)
   })
-  const data = await res.json()
-  if (!data.error) {
+  const json = await res.json()
+  const { response, success } = json;
+  console.log("🚀 ~ handleSubmit ~ response:", response)
+  if (success) {
     if (clienteActual.ItemId === 0) {
-      clienteActual.ItemId = data.inserted
-      items.value.push({ ...clienteActual })
+      clienteActual.ItemId = response.insertedId
+      items.value.push({ ...(clienteActual as any) })
+      await nextTick()
+      clienteActivoId.value = clienteActual.ItemId
+      scrollToRow(clienteActual.ItemId)
     } else {
-      const index = items.value.findIndex(i => i.ItemId === clienteActual.ItemId)
-      if (index !== -1) items.value[index] = { ...clienteActual }
+      const idx = (items.value as any[]).findIndex((i: any) => i.ItemId === clienteActual.ItemId)
+      if (idx !== -1) (items.value as any[])[idx] = { ...(clienteActual as any) }
+      await nextTick()
+      clienteActivoId.value = clienteActual.ItemId
+      scrollToRow(clienteActual.ItemId)
     }
     modalEditar.value = false
-    clienteActivoId.value = null
   }
 }
 
+/* Carga */
 onMounted(async () => {
   const res = await fetch(`${ruta_backend}/api/clientes/read/`)
   const data = await res.json()
@@ -216,20 +252,27 @@ onMounted(async () => {
   }
 })
 
-function getRowClass(item: any): string {
-  return clienteActivoId.value === item.ItemId ? 'fila-activa' : ''
+/* Clase + ancla scroll */
+function getRowClass(row: any): string {
+  const activa = clienteActivoId.value === row.ItemId ? 'fila-activa' : ''
+  return `${activa} row-${row.ItemId}`
+}
+
+function scrollToRow(id: number) {
+  const el = document.querySelector(`.row-${id}`)
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 </script>
 
 <style>
 .card-body {
   height: 60vh;
+  position: relative;
+  overflow-y: auto;
 }
 tr.fila-activa td {
   background-color: #d1e7dd !important;
   transition: background-color 0.2s ease;
 }
-tr:hover {
-  cursor: pointer;
-}
+tr:hover { cursor: pointer; }
 </style>

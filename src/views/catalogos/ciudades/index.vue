@@ -4,16 +4,16 @@
       <b-col xl="12">
         <b-row class="align-items-center mb-3">
           <b-col cols="6">
-            <h4 class="mb-0">Gestión de Seguros</h4>
+            <h4 class="mb-0">Gestión de Ciudades</h4>
           </b-col>
           <b-col cols="6" class="text-end">
-            <b-button variant="primary" class="me-2" @click="agregarSeguro">
+            <b-button variant="primary" class="me-2" @click="agregarCiudad">
               <i class="ri-add-line me-1" /> Agregar
             </b-button>
-            <b-button variant="warning" class="me-2" :disabled="!seguroActivoId" @click="editarSeguroSeleccionado">
+            <b-button variant="warning" class="me-2" :disabled="!ciudadActivaId" @click="editarCiudadSeleccionada">
               <i class="ri-pencil-line me-1" /> Editar
             </b-button>
-            <b-button variant="danger" class="me-2" :disabled="!seguroActivoId" @click="eliminarSeguroSeleccionado">
+            <b-button variant="danger" class="me-2" :disabled="!ciudadActivaId" @click="eliminarCiudadSeleccionada">
               <i class="ri-delete-bin-line me-1" /> Eliminar
             </b-button>
             <b-button variant="success" class="me-2" :disabled="filteredItems.length===0" @click="exportarVisibleExcel">
@@ -33,7 +33,7 @@
           </b-col>
         </b-row>
 
-        <UIComponentCard id="tabla-seguros" title="Seguros">
+        <UIComponentCard id="tabla-ciudades" title="Ciudades">
           <EasyDataTable
             border-cell
             :headers="headers"
@@ -47,22 +47,30 @@
             @update:sort-by="sortBy = $event"
             @update:sort-type="sortType = $event"
           >
-            <template v-for="col in columnasSeleccionables" #[`item-${col}`]="item">
-              <div @click="seleccionarSeguro(item)">{{ item[col] }}</div>
-            </template>
+            <!-- Click en cualquier celda para seleccionar fila -->
+           <template v-for="col in columnasSeleccionables" #[`item-${col}`]="item">
+  <div @click="seleccionarCiudad(item)">{{ item?.[col] }}</div>
+</template>
           </EasyDataTable>
         </UIComponentCard>
       </b-col>
     </b-row>
 
-    <b-modal hide-footer v-model="modalEditar" title="Formulario de Seguro" centered>
+    <b-modal hide-footer v-model="modalEditar" title="Formulario de Ciudad" centered>
       <b-form @submit.prevent="handleSubmit">
-        <b-form-group label="Aseguradora">
-          <b-form-input v-model="v$.Aseguradora.$model" :state="!v$.Aseguradora.$dirty ? null : !v$.Aseguradora.$invalid" />
+        <b-form-group label="Nombre de la ciudad">
+          <b-form-input
+            v-model="v$.nombre.$model"
+            :state="!v$.nombre.$dirty ? null : !v$.nombre.$invalid"
+            placeholder="Ej. SALTILLO, COAH."
+          />
         </b-form-group>
 
-        <b-form-group label="Póliza">
-          <b-form-input v-model="v$.Poliza.$model" :state="!v$.Poliza.$dirty ? null : !v$.Poliza.$invalid" />
+        <!-- Campo Activo visible por si quieres desactivar desde el formulario -->
+        <b-form-group label="Activo" class="mt-2">
+          <b-form-checkbox v-model="ciudadActual.Activo" :value="1" :unchecked-value="0">
+            Activo
+          </b-form-checkbox>
         </b-form-group>
 
         <b-col cols="12 mt-3">
@@ -73,6 +81,7 @@
     </b-modal>
   </VerticalLayout>
 </template>
+
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue'
 import * as XLSX from 'xlsx'
@@ -87,134 +96,150 @@ import { ruta_backend } from '@/helpers/api'
 import type { Header, Item } from 'vue3-easy-data-table'
 import type { User } from '@/types/auth'
 
+/** Usuario para auditoría (agrego/edito/elimino si aplica) */
 const user = useSessionStorage<User | any>('RASKET_VUE_USER', null)
-const usuario = JSON.parse(user.value)
+const usuario = JSON.parse(user.value || '{}')
 
-const seguroActivoId = ref<number | null>(null)
+/** State principal */
+const ciudadActivaId = ref<number | null>(null)
 const modalEditar = ref(false)
 
-const seguroActual = reactive({
+/** Ciudad en edición */
+const ciudadActual = reactive({
   ItemId: 0,
-  Aseguradora: '',
-  Poliza: '',
-  Activo: 1,
+  nombre: '',
+  Activo: 1 as 0 | 1,
   agrego: '',
   edito: ''
 })
 
+/** Validaciones */
 const rules = computed(() => ({
-  Aseguradora: { required },
-  Poliza: { required }
+  nombre: { required }
 }))
+const v$ = useVuelidate(rules, ciudadActual)
 
-const v$ = useVuelidate(rules, seguroActual)
-
+/** Tabla */
 const headers: Header[] = [
-  { text: 'Aseguradora', value: 'Aseguradora', sortable: true },
-  { text: 'Póliza', value: 'Poliza', sortable: true },
+  { text: 'Nombre', value: 'nombre', sortable: true },
 ]
 const columnasSeleccionables = headers.map(h => h.value)
 const items = ref<Item[]>([])
-const sortBy = ref('Aseguradora')
+const sortBy = ref('nombre')
 const sortType = ref<'asc' | 'desc'>('asc')
-const searchField = ref('Aseguradora')
+const searchField = ref('nombre')
 const searchValue = ref('')
 
+/** Filtro por campo/valor */
 const filteredItems = computed(() => {
   if (!searchValue.value) return items.value
-  return items.value.filter(item => {
-    const val = item[searchField.value]?.toString().toLowerCase()
-    return val?.includes(searchValue.value.toLowerCase())
+  return items.value.filter((row: any) => {
+    if (!row || typeof row !== 'object') return false
+    const val = row[searchField.value]
+    return String(val ?? '').toLowerCase().includes(searchValue.value.toLowerCase())
   })
 })
 
-function seleccionarSeguro(item: any) {
-  seguroActivoId.value = seguroActivoId.value === item.ItemId ? null : item.ItemId
+
+/** Selección */
+function seleccionarCiudad(row: any) {
+  ciudadActivaId.value = ciudadActivaId.value === row.ItemId ? null : row.ItemId
 }
 
-function agregarSeguro() {
-  Object.assign(seguroActual, {
+/** Alta */
+function agregarCiudad() {
+  Object.assign(ciudadActual, {
     ItemId: 0,
-    Aseguradora: '',
-    Poliza: '',
+    nombre: '',
     Activo: 1,
-    agrego: ''
+    agrego: '',
+    edito: ''
   })
+  v$.value.$reset()
   modalEditar.value = true
 }
 
-function editarSeguroSeleccionado() {
-  const seguro = items.value.find(i => i.ItemId === seguroActivoId.value)
-  if (seguro) {
-    Object.assign(seguroActual, seguro)
+/** Edita seleccionado */
+function editarCiudadSeleccionada() {
+  const row: any = items.value.find((i: any) => i.ItemId === ciudadActivaId.value)
+  if (row) {
+    Object.assign(ciudadActual, {
+      ItemId: row.ItemId,
+      nombre: row.nombre,
+      Activo: row.Activo ?? 1,
+      agrego: row.agrego ?? '',
+      edito: ''
+    })
+    v$.value.$reset()
     modalEditar.value = true
   }
 }
 
-async function eliminarSeguroSeleccionado() {
-  if (!seguroActivoId.value) return
-  await fetch(`${ruta_backend}/api/seguros/delete?ItemId=${seguroActivoId.value}`, {
+/** Eliminar (baja lógica) */
+async function eliminarCiudadSeleccionada() {
+  if (!ciudadActivaId.value) return
+  await fetch(`${ruta_backend}/api/ciudades/delete?ItemId=${ciudadActivaId.value}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ItemId: seguroActivoId.value, elimino:usuario.userData.Username})
+    body: JSON.stringify({
+      ItemId: ciudadActivaId.value,
+      elimino: usuario?.userData?.Username || 'SISTEMA'
+    })
   })
-  items.value = items.value.filter(i => i.ItemId !== seguroActivoId.value)
-  seguroActivoId.value = null
+  items.value = (items.value as any[]).filter(i => (i as any).ItemId !== ciudadActivaId.value)
+  ciudadActivaId.value = null
 }
 
+/** Guardar (insert/update) */
 async function handleSubmit() {
   const valid = await v$.value.$validate()
   if (!valid) return
 
-  const url = seguroActual.ItemId === 0
-    ? `${ruta_backend}/api/seguros/insert`
-    : `${ruta_backend}/api/seguros/update`;
-    if(seguroActual.ItemId == 0) seguroActual.agrego = usuario.userData.Username;
-    else seguroActual.edito = usuario.userData.Username;
-  
+  const esNuevo = ciudadActual.ItemId === 0
+  const url = esNuevo
+    ? `${ruta_backend}/api/ciudades/insert`
+    : `${ruta_backend}/api/ciudades/update?ItemId=${ciudadActual.ItemId}`
+
+  // Auditoría (si tu backend los ignora, no pasa nada; traercamposPermitidos lo filtrará)
+  if (esNuevo) ciudadActual.agrego = usuario?.userData?.Username || 'SISTEMA'
+  else ciudadActual.edito = usuario?.userData?.Username || 'SISTEMA'
 
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(seguroActual)
+    body: JSON.stringify(ciudadActual)
   })
   const data = await res.json()
+
   if (!data.error) {
-    if (seguroActual.ItemId === 0) {
-      seguroActual.ItemId = data.inserted
-      items.value.push({ ...seguroActual })
+    if (esNuevo) {
+      // Soportar distintos nombres de propiedad de respuesta
+      const inserted = data?.response?.insertedId ?? data?.inserted ?? data?.response?.inserted ?? 0
+      const nueva = { ...ciudadActual, ItemId: inserted || ciudadActual.ItemId }
+      items.value.push(nueva as any)
     } else {
-      const index = items.value.findIndex(i => i.ItemId === seguroActual.ItemId)
-      if (index !== -1) items.value[index] = { ...seguroActual }
+      const idx = (items.value as any[]).findIndex(i => (i as any).ItemId === ciudadActual.ItemId)
+      if (idx !== -1) (items.value as any[])[idx] = { ...ciudadActual } as any
     }
     modalEditar.value = false
-    seguroActivoId.value = null
+    ciudadActivaId.value = null
   }
 }
 
-/** 
- * Exporta a .xlsx lo que está visible en la tabla:
- * - Filas: `filteredItems`
- * - Columnas: `headers` (orden y títulos)
- */
+/** Exporta a Excel lo visible */
 function exportarVisibleExcel() {
-  // 1) Si no hay datos, nada que hacer
   if (!filteredItems.value || filteredItems.value.length === 0) return
 
-  // 2) Define columnas visibles (en orden) y sus títulos bonitos
   const cols = headers.map(h => ({ key: h.value as string, title: h.text }))
-
-  // 3) Mapea las filas visibles para que el Excel tenga encabezados con `text`
-  const dataForExcel = filteredItems.value.map((row: Record<string, any>) => {
+  const dataForExcel = (filteredItems.value as any[]).map(row => {
     const out: Record<string, any> = {}
     cols.forEach(c => { out[c.title] = row[c.key] ?? '' })
     return out
   })
 
-  // 4) Crea worksheet y autosize de columnas
   const ws = XLSX.utils.json_to_sheet(dataForExcel, { skipHeader: false })
 
-  // Autosize: calcula el ancho en función del contenido más largo
+  // Autosize sencillo
   const colWidths = cols.map(c => {
     const headerLen = String(c.title).length
     const maxCellLen = dataForExcel.reduce((max, r) => {
@@ -222,15 +247,12 @@ function exportarVisibleExcel() {
       const len = v == null ? 0 : String(v).length
       return Math.max(max, len)
     }, 0)
-    // margen + ancho mínimo agradable
-    const width = Math.max(10, Math.min(60, Math.ceil((Math.max(headerLen, maxCellLen) + 2))))
-    return { wch: width }
+    return { wch: Math.max(10, Math.min(60, Math.ceil(Math.max(headerLen, maxCellLen) + 2))) }
   })
   ws['!cols'] = colWidths
 
-  // 5) Crea workbook y escribe archivo
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Clientes visibles')
+  XLSX.utils.book_append_sheet(wb, ws, 'Ciudades visibles')
 
   const fecha = new Date()
   const yyyy = fecha.getFullYear()
@@ -239,22 +261,32 @@ function exportarVisibleExcel() {
   const hh = String(fecha.getHours()).padStart(2, '0')
   const mi = String(fecha.getMinutes()).padStart(2, '0')
   const ss = String(fecha.getSeconds()).padStart(2, '0')
+  const filename = `ciudades_${yyyy}${mm}${dd}_${hh}${mi}${ss}.xlsx`
 
-  const filename = `seguros_${yyyy}${mm}${dd}_${hh}${mi}${ss}.xlsx`
   XLSX.writeFile(wb, filename, { bookType: 'xlsx' })
 }
 
+/** Carga inicial */
 onMounted(async () => {
-  const res = await fetch(`${ruta_backend}/api/seguros/read/`)
+  const res = await fetch(`${ruta_backend}/api/ciudades/read`)
   const data = await res.json()
   if (!data.error && Array.isArray(data.response)) {
     items.value = data.response
+      .filter((r: any) => r && typeof r === 'object')
+      .map((r: any) => ({
+        ItemId: r.ItemId,
+        nombre: r.nombre ?? '',
+        Activo: r.Activo ?? 1,
+      }))
   }
 })
 
-function getRowClass(item: any): string {
-  return seguroActivoId.value === item.ItemId ? 'fila-activa' : ''
+
+/** Estilo de fila seleccionada */
+function getRowClass(row: any): string {
+  return row && ciudadActivaId.value === row.ItemId ? 'fila-activa' : ''
 }
+
 </script>
 
 <style>

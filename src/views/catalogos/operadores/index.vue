@@ -3,18 +3,21 @@
     <b-row>
       <b-col xl="12">
         <b-row class="align-items-center mb-3">
-          <b-col cols="8">
+          <b-col cols="6">
             <h4 class="mb-0">Gestión de Operadores</h4>
           </b-col>
-          <b-col cols="4" class="text-end">
+          <b-col cols="6" class="text-end">
             <b-button variant="primary" class="me-2" @click="agregarOperador">
               <i class="ri-add-line me-1" /> Agregar
             </b-button>
             <b-button variant="warning" class="me-2" :disabled="!operadorActivoId" @click="editarOperadorSeleccionado">
               <i class="ri-pencil-line me-1" /> Editar
             </b-button>
-            <b-button variant="danger" :disabled="!operadorActivoId" @click="eliminarOperadorSeleccionado">
+            <b-button variant="danger" class="me-2" :disabled="!operadorActivoId" @click="eliminarOperadorSeleccionado">
               <i class="ri-delete-bin-line me-1" /> Eliminar
+            </b-button>
+               <b-button variant="success" class="me-2" :disabled="filteredItems.length===0" @click="exportarVisibleExcel">
+              <i class="ri-file-excel-2-line me-1" /> Exportar Excel
             </b-button>
           </b-col>
         </b-row>
@@ -79,6 +82,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import * as XLSX from 'xlsx'
 import { useVuelidate } from '@vuelidate/core'
 import { required, helpers } from '@vuelidate/validators'
 import VerticalLayout from '@/layouts/VerticalLayout.vue'
@@ -163,10 +167,10 @@ function editarOperadorSeleccionado() {
 
 async function eliminarOperadorSeleccionado() {
   if (!operadorActivoId.value) return
-  await fetch(`${ruta_backend}/api/operadores/delete`, {
+  await fetch(`${ruta_backend}/api/operadores/delete?Id=${operadorActivoId.value}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ItemId: operadorActivoId.value })
+    body: JSON.stringify({ elimino:usuario.userData.Username })
   })
   operadores.value = operadores.value.filter(i => i.ItemId !== operadorActivoId.value)
   operadorActivoId.value = null
@@ -202,6 +206,59 @@ async function handleSubmit() {
   }
 }
 
+/** 
+ * Exporta a .xlsx lo que está visible en la tabla:
+ * - Filas: `filteredItems`
+ * - Columnas: `headers` (orden y títulos)
+ */
+function exportarVisibleExcel() {
+  // 1) Si no hay datos, nada que hacer
+  if (!filteredItems.value || filteredItems.value.length === 0) return
+
+  // 2) Define columnas visibles (en orden) y sus títulos bonitos
+  const cols = headers.map(h => ({ key: h.value as string, title: h.text }))
+
+  // 3) Mapea las filas visibles para que el Excel tenga encabezados con `text`
+  const dataForExcel = filteredItems.value.map((row: Record<string, any>) => {
+    const out: Record<string, any> = {}
+    cols.forEach(c => { out[c.title] = row[c.key] ?? '' })
+    return out
+  })
+
+  // 4) Crea worksheet y autosize de columnas
+  const ws = XLSX.utils.json_to_sheet(dataForExcel, { skipHeader: false })
+
+  // Autosize: calcula el ancho en función del contenido más largo
+  const colWidths = cols.map(c => {
+    const headerLen = String(c.title).length
+    const maxCellLen = dataForExcel.reduce((max, r) => {
+      const v = r[c.title]
+      const len = v == null ? 0 : String(v).length
+      return Math.max(max, len)
+    }, 0)
+    // margen + ancho mínimo agradable
+    const width = Math.max(10, Math.min(60, Math.ceil((Math.max(headerLen, maxCellLen) + 2))))
+    return { wch: width }
+  })
+  ws['!cols'] = colWidths
+
+  // 5) Crea workbook y escribe archivo
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Clientes visibles')
+
+  const fecha = new Date()
+  const yyyy = fecha.getFullYear()
+  const mm = String(fecha.getMonth() + 1).padStart(2, '0')
+  const dd = String(fecha.getDate()).padStart(2, '0')
+  const hh = String(fecha.getHours()).padStart(2, '0')
+  const mi = String(fecha.getMinutes()).padStart(2, '0')
+  const ss = String(fecha.getSeconds()).padStart(2, '0')
+
+  const filename = `operadores_${yyyy}${mm}${dd}_${hh}${mi}${ss}.xlsx`
+  XLSX.writeFile(wb, filename, { bookType: 'xlsx' })
+}
+
+
 onMounted(async () => {
   const res = await fetch(`${ruta_backend}/api/operadores/read/`)
   const data = await res.json()
@@ -218,6 +275,8 @@ function getRowClass(item: any): string {
 <style>
 .card-body {
   height: 60vh;
+  position: relative;
+  overflow-y: auto;
 }
 tr.fila-activa td {
   background-color: #d1e7dd !important;

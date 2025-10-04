@@ -1,265 +1,278 @@
 <template>
-  <b-modal
-    :model-value="mostrar"
-    @hide="emit('update:mostrar', false)"
-    title="Formulario Dirección Fiscal"
-    centered
-    hide-footer
-  >
-    <b-form @submit.prevent="emitirGuardar">
-      <b-form-group label="RFC">
-        <b-form-input v-model="form.RFC" required />
-      </b-form-group>
+  <VerticalLayout>
+    <b-row>
+      <b-col xl="9">
+        <UIComponentCard title="Basic Example" id="basic">
+          <b-row>
+            <b-col lg="6">
+              <b-form-group>
+                <ChoicesSelect id="choices-single-default" v-model="basicSelected" :options="options1"
+                  class="form-control" />
+              </b-form-group>
+            </b-col>
+          </b-row>
+        </UIComponentCard>
 
-      <b-form-group label="Nombre o Razón Social">
-        <b-form-input v-model="form.Nombre" required />
-      </b-form-group>
+        <UIComponentCard title="Option Groups Example" id="options-group">
+          <b-row>
+            <b-col lg="6">
+              <b-form-group>
+                <ChoicesSelect id="choices-single-groups" label="Option Groups" class="form-control"
+                  v-model="optionGrpSelected">
+                  <option value="">Choose a city</option>
+                  <optgroup label="UK">
+                    <option value="London">London</option>
+                    <option value="Manchester">Manchester</option>
+                    <option value="Liverpool">Liverpool</option>
+                  </optgroup>
+                  <optgroup label="FR">
+                    <option value="Paris">Paris</option>
+                    <option value="Lyon">Lyon</option>
+                    <option value="Marseille">Marseille</option>
+                  </optgroup>
+                  <optgroup label="DE" disabled>
+                    <option value="Hamburg">Hamburg</option>
+                    <option value="Munich">Munich</option>
+                    <option value="Berlin">Berlin</option>
+                  </optgroup>
+                  <optgroup label="US">
+                    <option value="New York">New York</option>
+                    <option value="Washington" disabled>Washington</option>
+                    <option value="Michigan">Michigan</option>
+                  </optgroup>
+                  <optgroup label="SP">
+                    <option value="Madrid">Madrid</option>
+                    <option value="Barcelona">Barcelona</option>
+                    <option value="Malaga">Malaga</option>
+                  </optgroup>
+                  <optgroup label="CA">
+                    <option value="Montreal">Montreal</option>
+                    <option value="Toronto">Toronto</option>
+                    <option value="Vancouver">Vancouver</option>
+                  </optgroup>
+                </ChoicesSelect>
+              </b-form-group>
+            </b-col>
+          </b-row>
+        </UIComponentCard>
 
-      <b-form-group label="Calle">
-        <b-form-input v-model="form.Calle" />
-      </b-form-group>
+        <UIComponentCard title="Options added via config with no search" id="options-add-no-search">
+          <b-row>
+            <b-col lg="6">
+              <b-form-group>
+                <ChoicesSelect id="choices-single-no-search" v-model="noSearchSelected" :options="options2"
+                  :choice-options="{ searchEnabled: false }" class="form-control" />
+              </b-form-group>
+            </b-col>
+          </b-row>
+        </UIComponentCard>
 
-      <b-form-group label="Número Exterior">
-        <b-form-input v-model="form.NumeroExterior" />
-      </b-form-group>
+        <UIComponentCard title="Options added via config with no sorting" id="options-add-no-sorting">
+          <b-row>
+            <b-col lg="6">
+              <b-form-group>
+                <ChoicesSelect id="choices-single-no-sorting" v-model="noSortingSelected" :options="options3"
+                  :choice-options="{ shouldSort: false, shouldSortItems: false }" class="form-control" />
+              </b-form-group>
+            </b-col>
+          </b-row>
+        </UIComponentCard>
 
-      <b-form-group label="País">
-        <b-form-select v-model="form.Pais_Cod" :options="paises" value-field="id" text-field="value" @change="onCambioPais" />
-      </b-form-group>
+        <UIComponentCard title="Multiple select input" id="multiple-select">
+          <b-row>
+            <b-col lg="6">
+              <b-form-group>
+                <ChoicesSelect id="choices-multiple-default" v-model="multipleSelected" :options="options4"
+                  class="form-control" multiple />
+              </b-form-group>
+            </b-col>
+          </b-row>
+        </UIComponentCard>
 
-      <b-form-group label="Código Postal">
-        <b-form-input v-model="form.CodigoPostal" @change="consultarCodigoPostal" />
-      </b-form-group>
+        <UIComponentCard title="Multiple select input" id="multiple-select-remove">
+          <b-row>
+            <b-col lg="6">
+              <b-form-group>
+                <ChoicesSelect id="choices-multiple-remove-button" v-model="multipleWithRemoveSelected"
+                  :options="options4" :choice-options="{ removeItemButton: true }" class="form-control" multiple />
+              </b-form-group>
+            </b-col>
+          </b-row>
+        </UIComponentCard>
 
-      <template v-if="form.Pais_Cod === 'MEX'">
-        <b-form-group label="Estado">
-          <b-form-select v-model="form.Estado_Cod" :options="estados" value-field="estado" text-field="value" @change="actualizarEstadoTexto" />
-        </b-form-group>
+        <UIComponentCard title="Multiple select With Option groups" id="multiple-groups">
+          <b-row>
+            <b-col lg="6">
+              <b-form-group>
+                <ChoicesSelect id="choices-multiple-groups" v-model="multipleWithOptionGrpSelected" class="form-control"
+                  multiple>
+                  <optgroup label="UK">
+                    <option value="London">London</option>
+                    <option value="Manchester">Manchester</option>
+                    <option value="Liverpool">Liverpool</option>
+                  </optgroup>
+                  <optgroup label="FR">
+                    <option value="Paris">Paris</option>
+                    <option value="Lyon">Lyon</option>
+                    <option value="Marseille">Marseille</option>
+                  </optgroup>
+                  <optgroup label="DE" disabled>
+                    <option value="Hamburg">Hamburg</option>
+                    <option value="Munich">Munich</option>
+                    <option value="Berlin">Berlin</option>
+                  </optgroup>
+                  <optgroup label="US">
+                    <option value="New York">New York</option>
+                    <option value="Washington" disabled>Washington</option>
+                    <option value="Michigan">Michigan</option>
+                  </optgroup>
+                  <optgroup label="SP">
+                    <option value="Madrid">Madrid</option>
+                    <option value="Barcelona">Barcelona</option>
+                    <option value="Malaga">Malaga</option>
+                  </optgroup>
+                  <optgroup label="CA">
+                    <option value="Montreal">Montreal</option>
+                    <option value="Toronto">Toronto</option>
+                    <option value="Vancouver">Vancouver</option>
+                  </optgroup>
+                </ChoicesSelect>
+              </b-form-group>
+            </b-col>
+          </b-row>
+        </UIComponentCard>
 
-        <b-form-group label="Municipio">
-          <b-form-select v-model="form.Municipio_Cod" :options="municipios" value-field="municipio" text-field="value" @change="actualizarMunicipioTexto" />
-        </b-form-group>
+        <UIComponentCard title="Text inputs" id="text-input">
+          <b-row>
+            <b-col lg="6">
+              <b-form-group>
+                <ChoicesInput id="choices-text-remove-button" label="Set limit values with remove button"
+                  class="form-control" :choice-options="{ removeItemButton: true, maxItemCount: 3 }" />
+              </b-form-group>
+            </b-col>
+          </b-row>
+        </UIComponentCard>
 
-        <b-form-group label="Localidad">
-          <b-form-select v-model="form.Localidad_Cod" :options="localidades" value-field="localidad" text-field="value" @change="actualizarLocalidadTexto" />
-        </b-form-group>
+        <UIComponentCard title="Text inputs in Unique values only, no pasting" id="unique-values">
+          <b-row>
+            <b-col lg="6">
+              <b-form-group>
+                <ChoicesInput id="choices-text-unique-values" label="Unique values only, no pasting"
+                  class="form-control" value="Project-A, Project-B"
+                  :choice-options="{ duplicateItemsAllowed: false, paste: false }" />
+              </b-form-group>
+            </b-col>
+          </b-row>
+        </UIComponentCard>
 
-        <b-form-group label="Colonia">
-          <b-form-select v-model="form.Colonia_Cod" :options="colonias" value-field="colonia" text-field="value" @change="actualizarColoniaTexto" />
-        </b-form-group>
-      </template>
+      </b-col>
 
-      <template v-else>
-        <b-form-group label="Estado">
-          <b-form-input v-model="form.Estado_Text" />
-        </b-form-group>
-
-        <b-form-group label="Municipio">
-          <b-form-input v-model="form.Municipio_Text" />
-        </b-form-group>
-
-        <b-form-group label="Localidad">
-          <b-form-input v-model="form.Localidad_Text" />
-        </b-form-group>
-
-        <b-form-group label="Colonia">
-          <b-form-input v-model="form.Colonia_Text" />
-        </b-form-group>
-      </template>
-
-      <div class="text-end">
-        <b-button variant="secondary" @click="emit('update:mostrar', false)">Cancelar</b-button>
-        <b-button variant="primary" type="submit">Guardar</b-button>
-      </div>
-    </b-form>
-  </b-modal>
+      <b-col xl="3">
+        <AnchorNavigation :elements="anchorNavigation" />
+      </b-col>
+    </b-row>
+  </VerticalLayout>
 </template>
 
-<script setup>
-import { reactive, ref, watch, onMounted } from 'vue'
-import { defineProps, defineEmits } from 'vue'
-import { ruta_backend } from '@/helpers/api'
+<script setup lang="ts">
+import AnchorNavigation from '@/components/AnchorNavigation.vue';
+import ChoicesInput from '@/components/ChoicesInput.vue';
+import ChoicesSelect from '@/components/ChoicesSelect.vue';
+import { ref } from 'vue';
+import VerticalLayout from "@/layouts/VerticalLayout.vue";
+import UIComponentCard from "@/components/UIComponentCard.vue";
 
-const props = defineProps({
-  id: { type: Number, default: 0 },
-  mostrar: { type: Boolean, required: true },
-})
-
-const emit = defineEmits(['update:mostrar', 'guardar'])
-
-const form = reactive({
-  ItemId: 0,
-  RFC: '',
-  Nombre: '',
-  Calle: '',
-  NumeroExterior: '',
-  CodigoPostal: '',
-  Estado_Cod: '',
-  Estado_Text: '',
-  Municipio_Cod: '',
-  Municipio_Text: '',
-  Localidad_Cod: '',
-  Localidad_Text: '',
-  Colonia_Cod: '',
-  Colonia_Text: '',
-  Pais_Cod: 'MEX',
-  Pais_Text: '',
-  usuario: ''
-})
-
-const colonias = ref([])
-const paises = ref([])
-const estados = ref([])
-const municipios = ref([])
-const localidades = ref([])
-
-async function cargarPaises() {
-  const res = await fetch(`${ruta_backend}/api/catalogos-sat?modelo=paises`)
-  paises.value = (await res.json()).response
-}
-
-async function cargarEstados() {
-  const res = await fetch(`${ruta_backend}/api/catalogos-sat?modelo=estados`)
-  estados.value = (await res.json()).response.filter(e => e.pais === 'MEX')
-}
-
-async function cargarMunicipios() {
-  if (!form.Estado_Cod) return
-  const res = await fetch(`${ruta_backend}/api/catalogos-sat?modelo=municipios`)
-  municipios.value = (await res.json()).response.filter(m => m.estado === form.Estado_Cod)
-}
-
-async function cargarLocalidades() {
-  if (!form.Estado_Cod) return
-  const res = await fetch(`${ruta_backend}/api/catalogos-sat?modelo=localidades`)
-  localidades.value = (await res.json()).response.filter(l => l.estado === form.Estado_Cod)
-}
-
-async function consultarCodigoPostal() {
-  if (!form.CodigoPostal || form.Pais_Cod !== 'MEX') return
-  const res = await fetch(`${ruta_backend}/api/catalogos-sat?modelo=codigos_postales&id=${form.CodigoPostal}`)
-  const data = await res.json()
-  if (data.response && data.response.length) {
-    const cp = data.response[0]
-    form.Estado_Cod = cp.estado || ''
-    form.Municipio_Cod = cp.municipio || ''
-    form.Localidad_Cod = cp.localidad || ''
-    await cargarEstados()
-    await cargarMunicipios()
-    await cargarLocalidades()
-    await cargarColonias()
-    actualizarEstadoTexto()
-    actualizarMunicipioTexto()
-    actualizarLocalidadTexto()
-    actualizarColoniaTexto()
+const anchorNavigation = [
+  {
+    id: 'basic',
+    title: 'Basic Example'
+  },
+  {
+    id: 'options-group',
+    title: 'Option Groups Example'
+  },
+  {
+    id: 'options-add-no-search',
+    title: 'Options added via config with no search'
+  },
+  {
+    id: 'options-add-no-sorting',
+    title: 'Options added via config with no sorting'
+  },
+  {
+    id: 'multiple-select',
+    title: 'Multiple select input'
+  },
+  {
+    id: 'multiple-select-remove',
+    title: 'Multiple select With remove button input '
+  },
+  {
+    id: 'multiple-groups',
+    title: 'Multiple select With Option groups '
+  },
+  {
+    id: 'text-input',
+    title: 'Text inputs'
+  },
+  {
+    id: 'unique-values',
+    title: 'Text inputs in Unique values only, no pasting'
   }
-}
+];
 
-async function cargarColonias() {
-  if (!form.CodigoPostal || form.Pais_Cod !== 'MEX') return
-  const res = await fetch(`${ruta_backend}/api/catalogos-sat?modelo=colonias&codigo_postal=${form.CodigoPostal}`)
-  colonias.value = (await res.json()).response
-  actualizarColoniaTexto()
-}
+const basicSelected = ref('');
+const optionGrpSelected = ref('');
+const noSearchSelected = ref('Zero');
+const noSortingSelected = ref('Madrid');
+const multipleSelected = ref('choice-1');
+const multipleWithRemoveSelected = ref('choice-3');
+const multipleWithOptionGrpSelected = ref('');
 
-function onCambioPais() {
-  const pais = paises.value.find(p => p.id === form.Pais_Cod)
-  form.Pais_Text = pais ? pais.value : ''
+const options1 = [
+  { value: '', text: 'This is a placeholder' },
+  { value: 'choice-1', text: 'Choice 1' },
+  { value: 'choice-2', text: 'Choice 2' },
+  { value: 'choice-3', text: 'Choice 3' },
+  { value: 'choice-4', text: 'Choice 4' }
+];
 
-  if (form.Pais_Cod !== 'MEX') {
-    form.Estado_Cod = ''
-    form.Estado_Text = ''
-    form.Municipio_Cod = ''
-    form.Municipio_Text = ''
-    form.Localidad_Cod = ''
-    form.Localidad_Text = ''
-    form.Colonia_Cod = ''
-    form.Colonia_Text = ''
-    colonias.value = []
-    estados.value = []
-    municipios.value = []
-    localidades.value = []
-  } else {
-    consultarCodigoPostal()
-  }
-}
+const options2 = [
+  { value: 'Zero', text: 'Zero' },
+  { value: 'One', text: 'One' },
+  { value: 'Two', text: 'Two' },
+  { value: 'Three', text: 'Three' },
+  { value: 'Four', text: 'Four' },
+  { value: 'Five', text: 'Five' },
+  { value: 'Six', text: 'Six' }
+];
 
-function actualizarEstadoTexto() {
-  const estado = estados.value.find(e => e.estado === form.Estado_Cod)
-  form.Estado_Text = estado?.value || ''
-}
+const options3 = [
+  { value: 'Madrid', text: 'Madrid' },
+  { value: 'Toronto', text: 'Toronto' },
+  { value: 'Vancouver', text: 'Vancouver' },
+  { value: 'London', text: 'London' },
+  { value: 'Manchester', text: 'Manchester' },
+  { value: 'Liverpool', text: 'Liverpool' },
+  { value: 'Paris', text: 'Paris' },
+  { value: 'Malaga', text: 'Malaga' },
+  { value: 'Washington', text: 'Washington' },
+  { value: 'Lyon', text: 'Lyon' },
+  { value: 'Marseille', text: 'Marseille' },
+  { value: 'Hamburg', text: 'Hamburg' },
+  { value: 'Munich', text: 'Munich' },
+  { value: 'Madrid', text: 'Madrid' },
+  { value: 'Barcelona', text: 'Barcelona' },
+  { value: 'Berlin', text: 'Berlin' },
+  { value: 'Montreal', text: 'Montreal' },
+  { value: 'New York', text: 'New York' },
+  { value: 'Michigan', text: 'Michigan' }
+];
 
-function actualizarMunicipioTexto() {
-  const municipio = municipios.value.find(m => m.municipio === form.Municipio_Cod)
-  form.Municipio_Text = municipio?.value || ''
-}
-
-function actualizarLocalidadTexto() {
-  const localidad = localidades.value.find(l => l.localidad === form.Localidad_Cod)
-  form.Localidad_Text = localidad?.value || ''
-}
-
-function actualizarColoniaTexto() {
-  const colonia = colonias.value.find(c => c.colonia === form.Colonia_Cod)
-  form.Colonia_Text = colonia?.value || ''
-}
-
-watch(() => props.mostrar, async (nuevoValor) => {
-  if (nuevoValor && props.id !== 0) {
-    const res = await fetch(`${ruta_backend}/api/razones_sociales/read?ItemId=${props.id}`)
-    const data = await res.json()
-    if (data.response && data.response.length) {
-      Object.assign(form, data.response[0])
-      await consultarCodigoPostal()
-    }
-  } else if (nuevoValor && props.id === 0) {
-    Object.assign(form, {
-      ItemId: 0,
-      RFC: '',
-      Nombre: '',
-      Calle: '',
-      NumeroExterior: '',
-      CodigoPostal: '',
-      Estado_Cod: '',
-      Estado_Text: '',
-      Municipio_Cod: '',
-      Municipio_Text: '',
-      Localidad_Cod: '',
-      Localidad_Text: '',
-      Colonia_Cod: '',
-      Colonia_Text: '',
-      Pais_Cod: 'MEX',
-      Pais_Text: '',
-      usuario: ''
-    })
-  }
-})
-
-onMounted(() => {
-  cargarPaises()
-  cargarEstados()
-})
-
-async function emitirGuardar() {
-  // Asegura que los catálogos estén cargados antes de actualizar los textos
-  if (form.Pais_Cod === 'MEX') {
-    await Promise.all([
-      cargarEstados(),
-      cargarMunicipios(),
-      cargarLocalidades(),
-      cargarColonias()
-    ])
-    actualizarEstadoTexto()
-    actualizarMunicipioTexto()
-    actualizarLocalidadTexto()
-    actualizarColoniaTexto()
-  } else {
-    const pais = paises.value.find(p => p.id === form.Pais_Cod)
-    form.Pais_Text = pais?.value || ''
-  }
-
-  emit('guardar', { ...form })
-  emit('update:mostrar', false)
-}
-
+const options4 = [
+  { value: 'choice-1', text: 'Choice 1' },
+  { value: 'choice-2', text: 'Choice 2' },
+  { value: 'choice-3', text: 'Choice 3' },
+  { value: 'choice-4', text: 'Choice 4' }
+];
 </script>
