@@ -86,13 +86,13 @@ export const MENU_ITEMS: MenuItemType[] = [
         route: { name: 'catalogos.ciudades' },
 
     },
-    {
-        key: 'catalogos-comisiones',
-        icon: 'clarity:dollar-solid',
-        label: 'Comisiones',
-        route: { name: 'catalogos.comisiones' },
+    // {
+    //     key: 'catalogos-comisiones',
+    //     icon: 'clarity:dollar-solid',
+    //     label: 'Comisiones',
+    //     route: { name: 'catalogos.comisiones' },
 
-    },
+    // },
     // {
     //     key: 'apps',
     //     label: 'APPS',

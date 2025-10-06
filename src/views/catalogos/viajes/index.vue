@@ -20,6 +20,11 @@
                 <i class="ri-file-pdf-line me-1" /> Generar PDF Bernal
               </b-dropdown-item-button>
 
+              <!-- NUEVO: Enviar PDF por WhatsApp -->
+              <b-dropdown-item-button :disabled="!viajeActivoId" @click="abrirModalWhatsApp">
+                <i class="ri-whatsapp-line me-1" /> Enviar PDF por WhatsApp
+              </b-dropdown-item-button>
+
               <b-dropdown-divider />
 
               <b-dropdown-item-button @click="openGestion('create')">
@@ -50,21 +55,45 @@
         </b-row>
 
         <!-- Filtros de tiempo -->
-        <b-row class="mb-3 align-items-end">
-          <b-col cols="12" md="7" />
-          <b-col cols="12" md="5">
-            <div class="d-flex flex-wrap gap-2 justify-content-md-end">
-              <b-form-radio-group
+        <b-row class="mb-3">
+          <b-col>
+            <div class="d-flex flex-wrap gap-2 justify-content-end align-items-end">
+
+              <!-- Selector de periodo -->
+              <b-form-select
                 v-model="filtroTiempo"
                 :options="opcionesTiempo"
-                buttons
-                button-variant="outline-primary"
                 size="sm"
+                class="w-auto"
               />
-              <input v-if="filtroTiempo==='hoy'" type="date"  v-model="fechaHoy"   class="form-control form-control-sm" style="min-width:140px;" />
-              <input v-if="filtroTiempo==='semana'" type="week"  v-model="semanaAnio" class="form-control form-control-sm" style="min-width:140px;" />
-              <input v-if="filtroTiempo==='mes'" type="month" v-model="mesAnio"    class="form-control form-control-sm" style="min-width:140px;" />
-              <b-button size="sm" variant="primary" @click="refrescarPorTiempo">Aplicar</b-button>
+
+              <!-- Día (ISO) -->
+              <input
+                v-if="filtroTiempo==='hoy'"
+                type="date"
+                v-model="fechaHoy"
+                class="form-control form-control-sm w-auto"
+              />
+
+              <!-- Semana ISO -->
+              <input
+                v-if="filtroTiempo==='semana'"
+                type="week"
+                v-model="semanaAnio"
+                class="form-control form-control-sm w-auto"
+              />
+
+              <!-- Mes -->
+              <input
+                v-if="filtroTiempo==='mes'"
+                type="month"
+                v-model="mesAnio"
+                class="form-control form-control-sm w-auto"
+              />
+
+              <b-button size="sm" variant="primary" @click="refrescarPorTiempo">
+                Aplicar
+              </b-button>
             </div>
           </b-col>
         </b-row>
@@ -120,9 +149,15 @@
   <b-modal v-model="showPdfModal" size="xl" title="Carta Porte (no oficial)" hide-footer>
     <div class="d-flex justify-content-between align-items-center mb-2">
       <small class="text-muted">Vista previa del PDF</small>
-      <b-button v-if="pdfUrl" size="sm" variant="outline-primary" :href="pdfUrl" target="_blank" rel="noopener">
-        Abrir en otra pestaña
-      </b-button>
+      <div class="d-flex align-items-center">
+        <b-button v-if="pdfUrl" size="sm" variant="outline-primary" :href="pdfUrl" target="_blank" rel="noopener">
+          Abrir en otra pestaña
+        </b-button>
+        <!-- NUEVO: botón WhatsApp dentro del visor -->
+        <b-button size="sm" variant="success" class="ms-2" @click="abrirModalWhatsApp">
+          <i class="ri-whatsapp-line" /> Enviar por WhatsApp
+        </b-button>
+      </div>
     </div>
     <div class="position-relative" style="height:80vh; border:1px solid #e9ecef; border-radius:.5rem;">
       <div v-if="!pdfLoaded" class="w-100 h-100 d-flex align-items-center justify-content-center">
@@ -130,6 +165,41 @@
       </div>
       <iframe v-show="pdfLoaded" :key="pdfUrl" :src="pdfUrl" style="width:100%; height:100%; border:0;" @load="onPdfLoad" />
     </div>
+  </b-modal>
+
+  <!-- NUEVO: Modal WhatsApp -->
+  <b-modal
+    v-model="showWaModal"
+    title="Enviar PDF por WhatsApp"
+    ok-title="Enviar"
+    cancel-title="Cancelar"
+    :ok-disabled="waSending || !waTelefono"
+    @ok="enviarPdfWhatsapp"
+  >
+    <b-form @submit.prevent="enviarPdfWhatsapp">
+      <b-form-group label="Teléfono (10 dígitos MX o completo)">
+        <b-form-input
+          v-model="waTelefono"
+          placeholder="Ej. 5512345678"
+          autocomplete="off"
+        />
+        <small class="text-muted d-block mt-1">
+          Si capturas 10 dígitos de MX, el servidor normaliza a 521XXXXXXXXXX.
+        </small>
+      </b-form-group>
+
+      <b-form-group label="Descripción (mensaje)">
+        <b-form-textarea
+          v-model="waDescripcion"
+          rows="3"
+          placeholder="Mensaje que acompañará al PDF…"
+        />
+      </b-form-group>
+
+      <b-alert v-if="waError" show variant="danger" class="mt-2">
+        {{ waError }}
+      </b-alert>
+    </b-form>
   </b-modal>
 </template>
 
@@ -173,21 +243,24 @@ function startOfDayStr(d: Date) { return `${toDateOnly(d)} 00:00:00` }
 function endOfDayStr(d: Date)   { return `${toDateOnly(d)} 23:59:59` }
 
 function getISOWeek(date: Date) {
+  // ISO week (lunes como primer día)
   const tmp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  const dayNum = tmp.getUTCDay() || 7
-  tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNum)
-  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(),0,1))
-  // @ts-ignore
-  return Math.ceil((((tmp as any) - (yearStart as any)) / 86400000 + 1)/7)
+  const day = tmp.getUTCDay() || 7
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - day)
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1))
+  // @ts-ignore diferencia de ms -> días -> semanas
+  return Math.ceil((((tmp as any) - (yearStart as any)) / 86400000 + 1) / 7)
 }
+
 function getDateOfISOWeek(week: number, year: number) {
-  const simple = new Date(Date.UTC(year, 0, 1 + (week - 1) * 7))
-  const dow = simple.getUTCDay()
-  const ISOweekStart = simple
-  if (dow <= 4 && dow !== 1) ISOweekStart.setUTCDate(simple.getUTCDate() - (dow - 1))
-  else if (dow === 0)       ISOweekStart.setUTCDate(simple.getUTCDate() - 6)
-  else if (dow > 4)         ISOweekStart.setUTCDate(simple.getUTCDate() + (8 - dow))
-  return ISOweekStart
+  // Lunes de la semana ISO
+  const simple = new Date(Date.UTC(year, 0, 4)) // 4 de enero siempre está en la semana 1
+  const day = simple.getUTCDay() || 7
+  const mondayOfWeek1 = new Date(simple)
+  mondayOfWeek1.setUTCDate(simple.getUTCDate() - (day - 1))
+  const mondayTarget = new Date(mondayOfWeek1)
+  mondayTarget.setUTCDate(mondayOfWeek1.getUTCDate() + (week - 1) * 7)
+  return mondayTarget
 }
 
 const rangoFechas = computed<{desde: string; hasta: string}>(() => {
@@ -225,6 +298,82 @@ async function verCartaPorte() {
   try { pdfLoaded.value = false; pdfUrl.value = epRenderCartaViaje(viajeActivoId.value); showPdfModal.value = true }
   catch { alert('No fue posible generar la carta en este momento.') }
 }
+
+/* ===== NUEVO: WhatsApp ===== */
+const epWAArchivo = `${ruta_backend}/api/whatsap/archivo`
+const showWaModal = ref(false)
+const waTelefono = ref<string>('')
+const waDescripcion = ref<string>('')
+const waSending = ref(false)
+const waError = ref<string>('')
+
+function getOperadorTelefono(operadorId: any): string {
+  const op = operadoresSelect.value.find((oo:any) => String(oo.ItemId) === String(operadorId))
+  if (!op) return ''
+  const keys = ['Telefono','Celular','WhatsApp','Whatsapp','telefono','celular','whatsapp','tel','movil','Movil']
+  for (const k of keys) {
+    const v = op?.[k]
+    if (typeof v === 'string' && v.trim() !== '') return v.trim()
+  }
+  return ''
+}
+
+function abrirModalWhatsApp() {
+  waError.value = ''
+  if (!viajeActivoId.value) { alert('Selecciona un viaje primero.'); return }
+  const v = viajes.value.find(x => x.ItemId === viajeActivoId.value)
+  if (!v) { alert('No se encontró el viaje seleccionado.'); return }
+  waTelefono.value = getOperadorTelefono(v.Operador) || ''
+  waDescripcion.value = ''
+  showWaModal.value = true
+}
+
+async function fetchPdfAsFile(viajeId: number | string): Promise<File> {
+  const url = epRenderCartaViaje(viajeId)
+  const r = await fetch(url, { cache: 'no-store' })
+  if (!r.ok) throw new Error('No se pudo generar/descargar el PDF')
+  const blob = await r.blob()
+  const filename = `carta_${String(viajeId)}.pdf`
+  console.log("🚀 ~ fetchPdfAsFile ~ filename:", filename)
+  
+  return new File([blob], filename, { type: 'application/pdf' })
+}
+
+async function enviarPdfWhatsapp() {
+  try {
+    waError.value = ''
+    if (!viajeActivoId.value) { waError.value = 'No hay viaje activo.'; return }
+    if (!waTelefono.value)   { waError.value = 'Captura un teléfono.'; return }
+
+    waSending.value = true
+
+    // 1) PDF Bernal como File (ya con nombre correcto)
+    const file = await fetchPdfAsFile(viajeActivoId.value) // p.ej. carta_123.pdf
+
+    // 2) FormData
+    const fd = new FormData()
+    fd.append('telefono', waTelefono.value.trim())
+    fd.append('descripcion', waDescripcion.value.trim())
+    fd.append('archivo', file, file.name)
+    fd.append('filename', file.name) // ← ESTA LÍNEA ES CLAVE
+
+    // 3) POST
+    const resp = await fetch(epWAArchivo, { method: 'POST', body: fd })
+    const j = await resp.json()
+
+    if (!resp.ok || j?.error) {
+      throw new Error(j?.message || 'No fue posible enviar el WhatsApp')
+    }
+
+    alert('Documento enviado por WhatsApp correctamente.')
+    showWaModal.value = false
+  } catch (e:any) {
+    waError.value = e?.message || String(e)
+  } finally {
+    waSending.value = false
+  }
+}
+
 
 /* ===== Sesión / usuario ===== */
 const user = useSessionStorage<User | any>('RASKET_VUE_USER', null)
@@ -281,6 +430,13 @@ const rsMap = computed<Record<string, string>>(() =>
 const rutasMap = computed<Record<string,string>>(() =>
   rutas.value.reduce((a:Record<string,string>, r:any) => { a[String(r.ItemId)] = r.Nombre || String(r.ItemId); return a }, {})
 )
+const rutasTipoMap = computed<Record<string, string>>(() =>
+  rutas.value.reduce((acc: Record<string, string>, r: any) => {
+    acc[String(r.ItemId)] = String(r.TipoRuta ?? r.tipo_ruta ?? '').toUpperCase()
+    return acc
+  }, {})
+)
+
 const operadoresMap = computed<Record<string,string>>(() =>
   operadoresSelect.value.reduce((a:Record<string,string>, o:any) => { a[String(o.ItemId)] = o.Nombre || String(o.ItemId); return a }, {})
 )
@@ -300,6 +456,9 @@ const headers: Header[] = [
   { text: 'Operador', value: 'Operador', sortable: true },
   { text: 'Num. Vale', value: 'NumVale', sortable: true },
 ]
+function getTipoRutaDeViaje(v: any): string {
+  return rutasTipoMap.value[String(v?.Ruta)] || ''
+}
 
 const itemsTabla = computed(() => viajes.value.map(v => {
   const ClienteNombre     = clientesMap.value[String(v.Cliente)] || ''
@@ -468,12 +627,35 @@ function validarViajeParaTimbrar(v:any) {
 }
 async function validarViajeParaTimbrarCompleto(v:any) {
   const faltantes = validarViajeParaTimbrar(v)
-  const tipoTarifa = getTipoTarifaDeViaje(v)
-  if (tipoTarifa === 'FACTURA HB') return faltantes
+
+  const tipoTarifa = getTipoTarifaDeViaje(v)         // 'CCP' | 'FACTURA HB' | ...
+  const tipoRuta   = getTipoRutaDeViaje(v)           // 'NACIONAL' | 'INTERNACIONAL' | ...
+
+  // Regla de negocio:
+  // - CCP solo si Ruta es NACIONAL
+  // - FACTURA HB siempre permitido (y no requiere mercancías)
+  if (tipoTarifa === 'CCP') {
+    if (tipoRuta !== 'NACIONAL') {
+      faltantes.push('Para timbrar con tarifa CCP, la Ruta debe ser NACIONAL')
+    }
+  } else if (tipoTarifa === 'FACTURA HB') {
+    // HB no depende de mercancías
+    return faltantes
+  } else {
+    // Otros tipos de tarifa no se pueden timbrar
+    faltantes.push('La tarifa debe ser CCP o FACTURA HB')
+  }
+
+  // Si ya hay faltantes (por ejemplo, ruta no NACIONAL), corta aquí
+  if (faltantes.length) return faltantes
+
+  // CCP requiere mercancías
   const count = await getMercanciasCount(Number(v.ItemId))
   if (count <= 0) faltantes.push('Al menos 1 mercancía')
+
   return faltantes
 }
+
 function getConfigVehicular(unidadId: any): string {
   const u = unidadesSelect.value.find((uu:any) => String(uu.ItemId) === String(unidadId))
   const keys = ['ConfigVehicular','ConfiguracionVehicular','Configuracion','config_vehicular','Config','ConfiguracionSAT']

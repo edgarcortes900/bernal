@@ -7,7 +7,7 @@
     cancel-title="Cerrar"
     @hide="onClose"
   >
-    <b-tabs v-model="activeTab" lazy>
+    <b-tabs v-model="activeTab">
       <b-tab title="Datos del viaje" key="viaje">
         <GestionViajeForm
           :key="formKey"
@@ -65,11 +65,14 @@ const viajeActual = computed(()=>{
   return props.viajes.find(v=> Number(v.ItemId)===Number(viajeId.value)) || null
 })
 
+/* Remount del form sólo si el modal está visible (evita reapertura vacía) */
 watch([() => viajeId.value, () => props.viajes], () => {
-  formKey.value++
+  if (show.value) formKey.value++
 })
 
+/* Abrir modal con guard para evitar doble apertura */
 async function open(m:'create'|'edit'|'mercancias', id?:number|null){
+  if (show.value) return
   modo.value = m
   viajeId.value = id ?? null
   formKey.value++
@@ -78,18 +81,26 @@ async function open(m:'create'|'edit'|'mercancias', id?:number|null){
 }
 defineExpose({ open })
 
+/* Al guardar, propaga y cierra limpiando estado (no abrir otro vacío) */
 function onSaved(v:any){
   if (!viajeId.value) viajeId.value = Number(v.ItemId||0)
   emit('guardado', v)
-  if (modo.value==='mercancias') activeTab.value = 'mercancias'
+
+  show.value = false
+  activeTab.value = 'viaje'
+  modo.value = 'create'
+  viajeId.value = null
 }
+
+/* Pasarela de eventos de mercancías */
 function onMercsUpdated(lista:any[]){
   if (viajeId.value) emit('mercancias-actualizadas', Number(viajeId.value), lista)
 }
+
 function onOk(evt?:any){
-  // El child hace el guardado; prevenimos submit doble del modal
   evt?.preventDefault?.()
 }
+
 function onClose(){
   activeTab.value = 'viaje'
   modo.value = 'create'
