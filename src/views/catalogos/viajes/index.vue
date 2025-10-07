@@ -114,6 +114,18 @@
                 {{ EstatusTxt }}
               </span>
             </template>
+            <template #item-timbrado="{ timbrado }">
+  <div class="text-center">
+    <Icon
+      v-if="Number(timbrado) === 1"
+      icon="iconamoon:check-bold"
+      width="18"
+      height="18"
+      class="text-success"
+    />
+    <span v-else class="text-muted">—</span>
+  </div>
+</template>
           </EasyDataTable>
         </UIComponentCard>
       </b-col>
@@ -217,6 +229,7 @@ import TimbradoPrepayloadModal from '../../../components/TimbradoPrepayloadModal
 import FleteDinamicoModal from '../../../components/FleteDinamicoModal.vue'
 import { useSessionStorage } from '@vueuse/core'
 import type { User } from '@/types/auth'
+import { Icon } from '@iconify/vue'
 
 /* ======== Filtros de tiempo ======== */
 const opcionesTiempo = [
@@ -454,7 +467,8 @@ const headers: Header[] = [
   { text: 'Estatus', value: 'EstatusTxt', sortable: true },
   { text: 'Unidad', value: 'Unidad', sortable: true },
   { text: 'Operador', value: 'Operador', sortable: true },
-  { text: 'Num. Vale', value: 'NumVale', sortable: true },
+//   { text: 'Num. Vale', value: 'NumVale', sortable: true },
+{ text: 'Timbrado', value: 'timbrado', sortable: true }, // ← NUEVO
 ]
 function getTipoRutaDeViaje(v: any): string {
   return rutasTipoMap.value[String(v?.Ruta)] || ''
