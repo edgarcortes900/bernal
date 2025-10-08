@@ -21,6 +21,27 @@
         />
         <small class="text-muted">Opcional. Se envía junto con la dirección.</small>
       </b-form-group>
+<!-- NUEVO: Solo si RFC extranjero genérico -->
+<template v-if="esExtranjero">
+  <b-form-group label="Residencia fiscal (c_Pais SAT)">
+    <b-form-select
+      v-model="form.ResidenciaFiscal"
+      :options="paises"          
+      value-field="id"
+      text-field="value"
+      required
+    />
+    <small class="text-muted">Clave SAT del país de residencia (ej. USA).</small>
+  </b-form-group>
+
+  <b-form-group label="NumRegIdTrib">
+    <b-form-input
+      v-model="form.NumRegIdTrib"
+      placeholder="Número de registro tributario (extranjero)"
+      required
+    />
+  </b-form-group>
+</template>
 
       <b-form-group label="Calle">
         <b-form-input v-model="form.Calle" />
@@ -136,7 +157,8 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch, onMounted } from 'vue'
+import { reactive, ref, watch, onMounted, computed } from 'vue'
+
 import { defineProps, defineEmits } from 'vue'
 import { ruta_backend } from '@/helpers/api'
 
@@ -150,6 +172,8 @@ const form = reactive({
   ItemId: 0,
   Nombre: '',
   RFC: '',               // <-- NUEVO EN FORM
+  ResidenciaFiscal: '',   // NUEVO
+NumRegIdTrib: '',       // NUEVO
   Calle: '',
   NumeroExterior: '',
   CodigoPostal: '',
@@ -166,6 +190,7 @@ const form = reactive({
   usuario: '',
   Cliente: 0,
 })
+const esExtranjero = computed(() => (form.RFC || '').toUpperCase() === 'XEXX010101000')
 
 /* UI: select|input por nivel */
 const ui = reactive({
@@ -365,6 +390,9 @@ watch(() => props.mostrar, async (v) => {
       if (d.response && d.response.length) {
         Object.assign(form, {
           RFC: '', // default por si el backend aún no lo envía
+          ResidenciaFiscal: '',   // NUEVO
+          NumRegIdTrib: '',       // NUEVO
+
           ...d.response[0],
         })
         const pais = paises.value.find(p => p.id === form.Pais_Cod)
@@ -389,6 +417,8 @@ watch(() => props.mostrar, async (v) => {
       ItemId: 0,
       Nombre: '',
       RFC: '',                 // reset RFC en alta
+                ResidenciaFiscal: '',   // NUEVO
+          NumRegIdTrib: '',       // NUEVO
       Calle: '',
       NumeroExterior: '',
       CodigoPostal: '',
@@ -428,6 +458,22 @@ function emitirGuardar() {
     form.Pais_Text = pais?.value || ''
     form.Estado_Cod = ''; form.Municipio_Cod = ''; form.Localidad_Cod = ''; form.Colonia_Cod = ''
   }
+  // Reglas para RFC extranjero genérico
+if (esExtranjero.value) {
+  if (!form.ResidenciaFiscal) {
+    alert('Residencia Fiscal es obligatoria cuando el RFC es XEXX010101000.')
+    return
+  }
+  if (!form.NumRegIdTrib) {
+    alert('NumRegIdTrib es obligatorio cuando el RFC es XEXX010101000.')
+    return
+  }
+} else {
+  // Si no aplica, limpiar para no guardar basura
+  form.ResidenciaFiscal = ''
+  form.NumRegIdTrib = ''
+}
+
   // RFC viaja en el payload igual que los demás campos
   emit('guardar', { ...form })
   emit('update:mostrar', false)
