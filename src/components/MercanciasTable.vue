@@ -55,6 +55,11 @@ const cols = [
   { key:'Unidad', label:'Unidad' },
   { key:'MaterialPeligroso', label:'Mat. Pel.' },
   { key:'PesoEnKg', label:'Kg' },
+
+  // NUEVAS COLUMNAS
+  { key:'FraccArancelaria', label:'Fracc. Arancelaria' },
+  { key:'TipoMateria',      label:'Tipo Materia' },
+
   { key:'Acciones', label:'Acciones', thStyle: {width:'160px'} }
 ]
 

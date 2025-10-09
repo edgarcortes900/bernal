@@ -119,6 +119,74 @@
             <b-form-input type="number" step="0.000001" v-model="local.PesoEnKg" />
           </b-form-group>
         </b-col>
+
+        <!-- NUEVO: Fracción Arancelaria (buscador) -->
+        <b-col md="6">
+          <b-form-group label="Fracción Arancelaria">
+            <b-input-group class="mb-2">
+              <b-form-input v-model="fraccQuery" placeholder="Buscar fracción (id o texto)..." autocomplete="off" />
+              <b-input-group-text>
+                <span v-if="fraccLoading">cargando…</span>
+                <span v-else>{{ fraccOptions.length }}/{{ fraccTotal }}</span>
+              </b-input-group-text>
+            </b-input-group>
+
+            <b-form-select v-model="local.FraccArancelaria">
+              <!-- Opción sintética para mostrar la fracción actual si aún no hay resultados -->
+              <b-form-select-option
+                v-if="showCurrentFraccOption"
+                :value="String(local.FraccArancelaria || '')"
+              >
+                {{ currentFraccLabel }}
+              </b-form-select-option>
+
+              <template #first>
+                <b-form-select-option :value="''" disabled>
+                  {{ fraccLoading ? 'Cargando…' : (fraccOptions.length ? 'Selecciona una fracción' : 'Escribe para buscar') }}
+                </b-form-select-option>
+              </template>
+
+              <b-form-select-option
+                v-for="opt in fraccOptions"
+                :key="'fracc-'+opt.value"
+                :value="opt.value"
+              >
+                {{ opt.text }}
+              </b-form-select-option>
+            </b-form-select>
+            <small class="text-muted">Se muestra <b>fracción - texto</b>; se guarda la <b>fracción</b>.</small>
+          </b-form-group>
+        </b-col>
+
+        <!-- NUEVO: Tipo Materia (catálogo) -->
+        <b-col md="6">
+          <b-form-group label="Tipo de Materia">
+            <b-form-select v-model="local.TipoMateria">
+              <!-- Opción sintética si el valor actual no está en el catálogo cargado -->
+              <b-form-select-option
+                v-if="showCurrentTipoMatOption"
+                :value="String(local.TipoMateria || '')"
+              >
+                {{ currentTipoMatLabel }}
+              </b-form-select-option>
+
+              <template #first>
+                <b-form-select-option :value="''" disabled>
+                  {{ tipoMatLoading ? 'Cargando…' : 'Selecciona un tipo' }}
+                </b-form-select-option>
+              </template>
+
+              <b-form-select-option
+                v-for="opt in tipoMatOptions"
+                :key="'tm-'+opt.value"
+                :value="opt.value"
+              >
+                {{ opt.text }}
+              </b-form-select-option>
+            </b-form-select>
+            <small class="text-muted">Se muestra <b>value - texto</b>; se guarda <b>value</b>.</small>
+          </b-form-group>
+        </b-col>
       </b-row>
 
       <div class="d-flex justify-content-end gap-2">
@@ -143,7 +211,11 @@ const { item } = toRefs(props)
 const local = reactive({
   ItemId: 0,
   BienesTransp: '', Descripcion: '', Cantidad: '',
-  ClaveUnidad: '', Unidad: '', MaterialPeligroso: '', PesoEnKg: ''
+  ClaveUnidad: '', Unidad: '', MaterialPeligroso: '', PesoEnKg: '',
+
+  // NUEVOS
+  FraccArancelaria: '',
+  TipoMateria: ''
 })
 
 /* Precarga del item en edición */
@@ -157,23 +229,30 @@ watchEffect(()=>{
     ClaveUnidad: String(v.ClaveUnidad||''),
     Unidad: String(v.Unidad||''),
     MaterialPeligroso: String(v.MaterialPeligroso||''),
-    PesoEnKg: String(v.PesoEnKg||'')
+    PesoEnKg: String(v.PesoEnKg||''),
+
+    // nuevos
+    FraccArancelaria: String(v.FraccArancelaria||''),
+    TipoMateria: String(v.TipoMateria||'')
   })
 })
 
 /* ====== SAT buscadores ====== */
 type PSRow = { id:string; value:string; material_peligroso?: string }
 type CURow = { id:string; value:string }
+type FraccRow = { value:string; fraccion:string; texto:string }
 const SAT_LIMIT = 100
-const psQuery = ref(''), cuQuery = ref('')
-const psLoading = ref(false), cuLoading = ref(false)
-const psTotal = ref(0), cuTotal = ref(0)
+const psQuery = ref(''), cuQuery = ref(''), fraccQuery = ref('')
+const psLoading = ref(false), cuLoading = ref(false), fraccLoading = ref(false)
+const psTotal = ref(0), cuTotal = ref(0), fraccTotal = ref(0)
 const psOptions = ref<{value:string;text:string;raw:PSRow}[]>([])
 const cuOptions = ref<{value:string;text:string;raw:CURow}[]>([])
+const fraccOptions = ref<{value:string;text:string;raw:FraccRow}[]>([])
 
-let tPS:any=null, tCU:any=null
+let tPS:any=null, tCU:any=null, tFR:any=null
 watch(psQuery, v=>{ clearTimeout(tPS); tPS=setTimeout(()=>fetchPS(String(v||'').trim()), 250) })
 watch(cuQuery, v=>{ clearTimeout(tCU); tCU=setTimeout(()=>fetchCU(String(v||'').trim()), 250) })
+watch(fraccQuery, v=>{ clearTimeout(tFR); tFR=setTimeout(()=>fetchFracciones(String(v||'').trim()), 250) })
 
 async function fetchPS(q:string){
   psLoading.value = true
@@ -197,16 +276,34 @@ async function fetchCU(q:string){
     cuOptions.value = rows.slice(0, SAT_LIMIT).map(row=>({ value:String(row.id), text:`${row.id} - ${row.value}`, raw:row }))
   } finally { cuLoading.value=false }
 }
+async function fetchFracciones(q:string){
+  fraccLoading.value = true
+  try{
+    if(!q){ fraccOptions.value=[]; fraccTotal.value=0; return }
+    const r = await fetch(`${props.rutaBackend}/api/catalogos-sat?modelo=fracciones_arancelarias&q=${encodeURIComponent(q)}&limit=${SAT_LIMIT}`)
+    const j = await r.json()
+    const rows:FraccRow[] = Array.isArray(j.response)? j.response: []
+    fraccTotal.value = Number(j.total ?? rows.length ?? 0)
+    fraccOptions.value = rows.slice(0, SAT_LIMIT).map(row=>({
+      value: String(row.fraccion || row.value),
+      text: `${row.fraccion || row.value} - ${row.texto || ''}`,
+      raw: row
+    }))
+  } finally { fraccLoading.value=false }
+}
 
 /* ====== Opción “actual” para que el select muestre algo sin haber buscado ====== */
 const showCurrentPSOption = computed(()=>{
   if (!local.BienesTransp) return false
-  // mostrar si opciones vacías o si no existe ya una opción con el mismo id
   return psOptions.value.length === 0 || !psOptions.value.some(o => String(o.value) === String(local.BienesTransp))
 })
 const showCurrentCUOption = computed(()=>{
   if (!local.ClaveUnidad) return false
   return cuOptions.value.length === 0 || !cuOptions.value.some(o => String(o.value) === String(local.ClaveUnidad))
+})
+const showCurrentFraccOption = computed(()=>{
+  if (!local.FraccArancelaria) return false
+  return fraccOptions.value.length === 0 || !fraccOptions.value.some(o => String(o.value) === String(local.FraccArancelaria))
 })
 
 const currentPSLabel = computed(()=>{
@@ -218,6 +315,10 @@ const currentCULabel = computed(()=>{
   const id = String(local.ClaveUnidad || '')
   const txt = String(local.Unidad || '')
   return id ? `${id} - ${txt || ''}` : ''
+})
+const currentFraccLabel = computed(()=>{
+  const fr = String(local.FraccArancelaria || '')
+  return fr ? `${fr} - (seleccionada)` : ''
 })
 
 /* Mantener autollenado cuando el usuario cambia a otra opción */
@@ -237,11 +338,35 @@ watch(()=>local.ClaveUnidad, id=>{
   if (opt) local.Unidad = opt.raw.value || ''
 })
 
-/* ====== Al montar, asegúrate de que el select tenga algo visible ====== */
+/* ====== Tipo Materia (catálogo simple) ====== */
+type TipoMatRow = { value:string; texto:string }
+const tipoMatOptions = ref<{value:string;text:string;raw:TipoMatRow}[]>([])
+const tipoMatLoading = ref(false)
+async function loadTipoMateria(){
+  tipoMatLoading.value = true
+  try{
+    const r = await fetch(`${props.rutaBackend}/api/catalogos-sat?modelo=tipos_materia`)
+    const j = await r.json()
+    const rows:TipoMatRow[] = Array.isArray(j.response)? j.response: []
+    tipoMatOptions.value = rows.map(row=>({
+      value: String(row.value),
+      text: `${row.value} - ${row.texto || ''}`,
+      raw: row
+    }))
+  } finally { tipoMatLoading.value = false }
+}
+const showCurrentTipoMatOption = computed(()=>{
+  if (!local.TipoMateria) return false
+  return tipoMatOptions.value.length === 0 || !tipoMatOptions.value.some(o => String(o.value) === String(local.TipoMateria))
+})
+const currentTipoMatLabel = computed(()=>{
+  const v = String(local.TipoMateria || '')
+  return v ? `${v} - (seleccionada)` : ''
+})
+
+/* ====== Al montar ====== */
 onMounted(()=>{
-  // Si ya viene con valores, no necesitamos pedir al SAT de inmediato;
-  // el “option sintético” hace que el select los muestre.
-  // Si quieres precargar 1 registro real desde SAT (por id), se puede agregar otro endpoint luego.
+  loadTipoMateria()
 })
 
 /* ====== Emitir actualización ====== */
@@ -261,6 +386,11 @@ function emitUpdate(){
     Cantidad:String(local.Cantidad), ClaveUnidad:String(local.ClaveUnidad),
     Unidad:String(local.Unidad), MaterialPeligroso:String(local.MaterialPeligroso),
     PesoEnKg:String(local.PesoEnKg),
+
+    // NUEVOS
+    FraccArancelaria: String(local.FraccArancelaria || ''),
+    TipoMateria: String(local.TipoMateria || ''),
+
     Edito:'', FechaEdito: Math.floor(Date.now()/1000)
   }
   emit('update', payload)

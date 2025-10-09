@@ -11,7 +11,7 @@
         <b-form-input v-model="form.Nombre" />
       </b-form-group>
 
-      <!-- NUEVO: RFC -->
+      <!-- RFC -->
       <b-form-group label="RFC">
         <b-form-input
           v-model="form.RFC"
@@ -21,27 +21,34 @@
         />
         <small class="text-muted">Opcional. Se envía junto con la dirección.</small>
       </b-form-group>
-<!-- NUEVO: Solo si RFC extranjero genérico -->
-<template v-if="esExtranjero">
-  <b-form-group label="Residencia fiscal (c_Pais SAT)">
-    <b-form-select
-      v-model="form.ResidenciaFiscal"
-      :options="paises"          
-      value-field="id"
-      text-field="value"
-      required
-    />
-    <small class="text-muted">Clave SAT del país de residencia (ej. USA).</small>
-  </b-form-group>
 
-  <b-form-group label="NumRegIdTrib">
-    <b-form-input
-      v-model="form.NumRegIdTrib"
-      placeholder="Número de registro tributario (extranjero)"
-      required
-    />
-  </b-form-group>
-</template>
+      <!-- RFC extranjero genérico -->
+      <template v-if="esExtranjero">
+        <!-- ResidenciaFiscal: SI Y SOLO SI RFC = XEXX010101000 -->
+        <b-form-group label="Residencia fiscal (c_Pais SAT)">
+          <b-form-input
+            v-model="form.ResidenciaFiscal"
+            :disabled="true"
+            readonly
+            placeholder="Se fija automáticamente a USA si RFC = XEXX010101000"
+          />
+          <small class="text-muted">
+            Se establece en <b>USA</b> únicamente cuando el RFC es <b>XEXX010101000</b>.
+          </small>
+        </b-form-group>
+
+        <!-- CURP ID TRIB (NumRegIdTrib) -->
+        <b-form-group label="CURP ID TRIB">
+          <b-form-input
+            v-model="form.NumRegIdTrib"
+            :required="form.Pais_Cod === 'USA'"
+            placeholder="Número de registro tributario extranjero"
+          />
+          <small class="text-muted">
+            Obligatorio solo si el país es <b>USA</b>. Si el país no es USA se enviará vacío.
+          </small>
+        </b-form-group>
+      </template>
 
       <b-form-group label="Calle">
         <b-form-input v-model="form.Calle" />
@@ -76,10 +83,10 @@
           <template v-if="ui.modoEstado === 'select'">
             <b-form-select
               v-model="form.Estado_Cod"
-              :options="estados"
+              :options="estadosFiltrados"
               value-field="estado"
               text-field="value"
-              :disabled="estados.length === 0"
+              :disabled="estadosFiltrados.length === 0"
               @change="onEstadoChange"
             />
           </template>
@@ -140,9 +147,25 @@
         </b-form-group>
       </template>
 
-      <!-- No-México: siempre inputs -->
+      <!-- No-México: para USA el Estado es catálogo; resto del mundo inputs -->
       <template v-else>
-        <b-form-group label="Estado"><b-form-input v-model="form.Estado_Text" /></b-form-group>
+        <b-form-group label="Estado">
+          <template v-if="form.Pais_Cod === 'USA'">
+            <b-form-select
+              v-model="form.Estado_Cod"
+              :options="estadosFiltrados"
+              value-field="estado"
+              text-field="value"
+              :disabled="estadosFiltrados.length === 0"
+              @change="actualizarEstadoTextoUSA"
+            />
+            <small class="text-muted">Catálogo de Estados SAT filtrado por país = USA.</small>
+          </template>
+          <template v-else>
+            <b-form-input v-model="form.Estado_Text" placeholder="Escriba el Estado" />
+          </template>
+        </b-form-group>
+
         <b-form-group label="Municipio"><b-form-input v-model="form.Municipio_Text" /></b-form-group>
         <b-form-group label="Localidad"><b-form-input v-model="form.Localidad_Text" /></b-form-group>
         <b-form-group label="Colonia"><b-form-input v-model="form.Colonia_Text" /></b-form-group>
@@ -158,7 +181,6 @@
 
 <script setup>
 import { reactive, ref, watch, onMounted, computed } from 'vue'
-
 import { defineProps, defineEmits } from 'vue'
 import { ruta_backend } from '@/helpers/api'
 
@@ -171,9 +193,9 @@ const emit = defineEmits(['update:mostrar', 'guardar'])
 const form = reactive({
   ItemId: 0,
   Nombre: '',
-  RFC: '',               // <-- NUEVO EN FORM
-  ResidenciaFiscal: '',   // NUEVO
-NumRegIdTrib: '',       // NUEVO
+  RFC: '',
+  ResidenciaFiscal: '',
+  NumRegIdTrib: '',
   Calle: '',
   NumeroExterior: '',
   CodigoPostal: '',
@@ -190,6 +212,7 @@ NumRegIdTrib: '',       // NUEVO
   usuario: '',
   Cliente: 0,
 })
+
 const esExtranjero = computed(() => (form.RFC || '').toUpperCase() === 'XEXX010101000')
 
 /* UI: select|input por nivel */
@@ -202,7 +225,7 @@ const ui = reactive({
 
 const colonias = ref([])
 const paises = ref([])
-const estados = ref([])
+const estados = ref([])       // TODOS los estados (MEX/USA/otros)
 const municipios = ref([])
 const localidades = ref([])
 
@@ -226,9 +249,11 @@ async function cargarEstados() {
   try {
     const r = await fetch(`${ruta_backend}/api/catalogos-sat?modelo=estados`)
     const j = await r.json()
-    estados.value = safeGet(j.response).filter(e => e.pais === 'MEX')
+    estados.value = safeGet(j.response) // cargamos todos; filtramos con computed
   } catch { estados.value = [] }
 }
+const estadosFiltrados = computed(() => estados.value.filter(e => String(e.pais) === String(form.Pais_Cod || '')))
+
 async function cargarMunicipios() {
   try {
     if (!form.Estado_Cod) { municipios.value = []; return }
@@ -263,7 +288,7 @@ async function cargarColonias() {
 
 /* Sync *_Text */
 function actualizarEstadoTexto() {
-  const estado = estados.value.find(e => e.estado === form.Estado_Cod)
+  const estado = estadosFiltrados.value.find(e => e.estado === form.Estado_Cod)
   form.Estado_Text = estado?.value || ''
 }
 function actualizarMunicipioTexto() {
@@ -277,6 +302,10 @@ function actualizarLocalidadTexto() {
 function actualizarColoniaTexto() {
   const colonia = colonias.value.find(c => c.colonia === form.Colonia_Cod)
   form.Colonia_Text = colonia?.value || ''
+}
+function actualizarEstadoTextoUSA() {
+  const est = estadosFiltrados.value.find(e => e.estado === form.Estado_Cod)
+  form.Estado_Text = est?.value || ''
 }
 
 /* Cambios en selects padre */
@@ -293,11 +322,9 @@ async function onMunicipioChange() {
   await cargarLocalidades()
 }
 
-/* CP debounce */
+/* CP debounce (MEX) */
 let cpTimer = null
 function consultarCodigoPostalDebounced() { clearTimeout(cpTimer); cpTimer = setTimeout(consultarCodigoPostal, 250) }
-
-/* Lógica principal CP */
 async function consultarCodigoPostal() {
   if (!form.CodigoPostal || form.Pais_Cod !== 'MEX') return
   try {
@@ -313,18 +340,16 @@ async function consultarCodigoPostal() {
       return
     }
 
-    /* ESTADO */
     if (hasValue(cp.estado)) {
       form.Estado_Cod = cp.estado
       await cargarEstados()
-      const est = estados.value.find(e => e.estado === form.Estado_Cod)
+      const est = estadosFiltrados.value.find(e => e.estado === form.Estado_Cod)
       if (est) { setModo('Estado','select'); form.Estado_Text = est.value }
       else { setModo('Estado','input'); limpiarNivel('Estado') }
     } else {
       setModo('Estado','input'); limpiarNivel('Estado')
     }
 
-    /* MUNICIPIO */
     if (ui.modoEstado === 'select' && hasValue(cp.municipio)) {
       form.Municipio_Cod = cp.municipio
       await cargarMunicipios()
@@ -335,7 +360,6 @@ async function consultarCodigoPostal() {
       setModo('Municipio','input'); limpiarNivel('Municipio')
     }
 
-    /* LOCALIDAD */
     if (ui.modoEstado === 'select' && hasValue(cp.localidad)) {
       form.Localidad_Cod = cp.localidad
       await cargarLocalidades()
@@ -354,9 +378,7 @@ async function consultarCodigoPostal() {
       setModo('Localidad','input'); limpiarNivel('Localidad')
     }
 
-    /* COLONIA */
     await cargarColonias()
-
   } catch {
     setModo('Estado','input'); estados.value=[]; limpiarNivel('Estado')
     setModo('Municipio','input'); municipios.value=[]; limpiarNivel('Municipio')
@@ -369,16 +391,42 @@ async function consultarCodigoPostal() {
 function onCambioPais() {
   const pais = paises.value.find(p => p.id === form.Pais_Cod)
   form.Pais_Text = pais ? pais.value : ''
-  if (form.Pais_Cod !== 'MEX') {
-    limpiarNivel('Estado'); limpiarNivel('Municipio'); limpiarNivel('Localidad'); limpiarNivel('Colonia')
-    setModo('Estado','input'); setModo('Municipio','input'); setModo('Localidad','input'); setModo('Colonia','input')
-    estados.value=[]; municipios.value=[]; localidades.value=[]; colonias.value=[]
-  } else {
+
+  if (form.Pais_Cod === 'MEX') {
     setModo('Estado','select'); setModo('Municipio','select'); setModo('Localidad','select'); setModo('Colonia','select')
     cargarEstados()
     consultarCodigoPostalDebounced()
+  } else if (form.Pais_Cod === 'USA') {
+    setModo('Estado','select')
+    setModo('Municipio','input'); setModo('Localidad','input'); setModo('Colonia','input')
+    estados.value.length === 0 && cargarEstados()
+    form.Municipio_Cod = form.Localidad_Cod = form.Colonia_Cod = ''
+    form.Municipio_Text = form.Localidad_Text = form.Colonia_Text = ''
+  } else {
+    setModo('Estado','input'); setModo('Municipio','input'); setModo('Localidad','input'); setModo('Colonia','input')
+    estados.value=[]; municipios.value=[]; localidades.value=[]; colonias.value=[]
+    limpiarNivel('Estado'); limpiarNivel('Municipio'); limpiarNivel('Localidad'); limpiarNivel('Colonia')
+  }
+
+  // Ajuste automático de campos por RFC extranjero + NUEVA REGLA ResidenciaFiscal
+  syncExtranjeroCampos()
+}
+
+/* NUEVA regla: ResidenciaFiscal = 'USA' IFF RFC = XEXX010101000 (independiente del país)
+   NumRegIdTrib solo requerido si País = USA; limpiar si no. */
+function syncExtranjeroCampos() {
+  if (esExtranjero.value) {
+    form.ResidenciaFiscal = 'USA'        // SI Y SOLO SI RFC extranjero genérico
+    if (form.Pais_Cod !== 'USA') {
+      form.NumRegIdTrib = ''            // si no es USA, no aplica
+    }
+  } else {
+    form.ResidenciaFiscal = ''
+    form.NumRegIdTrib = ''
   }
 }
+watch(() => form.Pais_Cod, () => { syncExtranjeroCampos() })
+watch(() => form.RFC, () => { syncExtranjeroCampos() })
 
 /* Cargar/Reset segun mostrar/id */
 watch(() => props.mostrar, async (v) => {
@@ -389,14 +437,14 @@ watch(() => props.mostrar, async (v) => {
       const d = await r.json()
       if (d.response && d.response.length) {
         Object.assign(form, {
-          RFC: '', // default por si el backend aún no lo envía
-          ResidenciaFiscal: '',   // NUEVO
-          NumRegIdTrib: '',       // NUEVO
-
+          RFC: '',
+          ResidenciaFiscal: '',
+          NumRegIdTrib: '',
           ...d.response[0],
         })
         const pais = paises.value.find(p => p.id === form.Pais_Cod)
         form.Pais_Text = pais?.value || ''
+
         if (form.Pais_Cod === 'MEX') {
           setModo('Estado', form.Estado_Cod ? 'select' : 'input')
           setModo('Municipio', form.Municipio_Cod ? 'select' : 'input')
@@ -407,18 +455,26 @@ watch(() => props.mostrar, async (v) => {
           await cargarLocalidades(); actualizarLocalidadTexto()
           await cargarColonias(); actualizarColoniaTexto()
           consultarCodigoPostalDebounced()
+        } else if (form.Pais_Cod === 'USA') {
+          setModo('Estado','select')
+          setModo('Municipio','input'); setModo('Localidad','input'); setModo('Colonia','input')
+          estados.value.length === 0 && await cargarEstados()
+          actualizarEstadoTextoUSA()
         } else {
           setModo('Estado','input'); setModo('Municipio','input'); setModo('Localidad','input'); setModo('Colonia','input')
         }
+
+        // Aplicar nueva regla de ResidenciaFiscal/NumRegIdTrib
+        syncExtranjeroCampos()
       }
     } catch {}
   } else {
     Object.assign(form, {
       ItemId: 0,
       Nombre: '',
-      RFC: '',                 // reset RFC en alta
-                ResidenciaFiscal: '',   // NUEVO
-          NumRegIdTrib: '',       // NUEVO
+      RFC: '',
+      ResidenciaFiscal: '',
+      NumRegIdTrib: '',
       Calle: '',
       NumeroExterior: '',
       CodigoPostal: '',
@@ -436,6 +492,7 @@ watch(() => props.mostrar, async (v) => {
       Cliente: 0,
     })
     setModo('Estado','select'); setModo('Municipio','select'); setModo('Localidad','select'); setModo('Colonia','select')
+    syncExtranjeroCampos()
   }
 })
 
@@ -444,6 +501,7 @@ onMounted(async () => {
   await cargarEstados()
   const pais = paises.value.find(p => p.id === form.Pais_Cod)
   form.Pais_Text = pais?.value || ''
+  syncExtranjeroCampos()
 })
 
 /* Guardar */
@@ -453,28 +511,30 @@ function emitirGuardar() {
     if (ui.modoMunicipio === 'select') actualizarMunicipioTexto(); else { form.Municipio_Cod = '' }
     if (ui.modoLocalidad === 'select') actualizarLocalidadTexto(); else { form.Localidad_Cod = '' }
     if (ui.modoColonia === 'select') actualizarColoniaTexto(); else { form.Colonia_Cod = '' }
+  } else if (form.Pais_Cod === 'USA') {
+    actualizarEstadoTextoUSA()
+    form.Municipio_Cod = form.Localidad_Cod = form.Colonia_Cod = ''
   } else {
     const pais = paises.value.find(p => p.id === form.Pais_Cod)
     form.Pais_Text = pais?.value || ''
     form.Estado_Cod = ''; form.Municipio_Cod = ''; form.Localidad_Cod = ''; form.Colonia_Cod = ''
   }
-  // Reglas para RFC extranjero genérico
-if (esExtranjero.value) {
-  if (!form.ResidenciaFiscal) {
-    alert('Residencia Fiscal es obligatoria cuando el RFC es XEXX010101000.')
-    return
-  }
-  if (!form.NumRegIdTrib) {
-    alert('NumRegIdTrib es obligatorio cuando el RFC es XEXX010101000.')
-    return
-  }
-} else {
-  // Si no aplica, limpiar para no guardar basura
-  form.ResidenciaFiscal = ''
-  form.NumRegIdTrib = ''
-}
 
-  // RFC viaja en el payload igual que los demás campos
+  // Validación final bajo la nueva regla
+  if (esExtranjero.value) {
+    form.ResidenciaFiscal = 'USA' // forzamos por la regla
+    if (form.Pais_Cod === 'USA' && !form.NumRegIdTrib) {
+      alert('CURP ID TRIB es obligatorio cuando el país es USA y RFC = XEXX010101000.')
+      return
+    }
+    if (form.Pais_Cod !== 'USA') {
+      form.NumRegIdTrib = ''
+    }
+  } else {
+    form.ResidenciaFiscal = ''
+    form.NumRegIdTrib = ''
+  }
+
   emit('guardar', { ...form })
   emit('update:mostrar', false)
 }

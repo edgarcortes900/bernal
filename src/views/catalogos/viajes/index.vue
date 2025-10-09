@@ -311,6 +311,12 @@ async function verCartaPorte() {
   try { pdfLoaded.value = false; pdfUrl.value = epRenderCartaViaje(viajeActivoId.value); showPdfModal.value = true }
   catch { alert('No fue posible generar la carta en este momento.') }
 }
+// + endpoint por ItemId
+const epReadDirById = (id:string) =>
+  `${ruta_backend}/api/direcciones/read?ItemId=${encodeURIComponent(id)}`
+
+// + cache simple por ItemId
+const dirByIdCache = new Map<string, any>()
 
 /* ===== NUEVO: WhatsApp ===== */
 const epWAArchivo = `${ruta_backend}/api/whatsap/archivo`
@@ -319,6 +325,51 @@ const waTelefono = ref<string>('')
 const waDescripcion = ref<string>('')
 const waSending = ref(false)
 const waError = ref<string>('')
+async function fetchDirById(id: string): Promise<any|null> {
+  if (!id) return null
+  const key = String(id)
+  if (dirByIdCache.has(key)) return dirByIdCache.get(key)
+  try {
+    const r = await fetch(epReadDirById(key))
+    const j = await r.json()
+    const row = Array.isArray(j.response) ? (j.response[0] || null) : null
+    if (row) dirByIdCache.set(key, row)
+    return row
+  } catch {
+    return null
+  }
+}
+
+function normalizePais(val: any): string {
+  const up = String(val ?? '').trim().toUpperCase()
+  if (!up) return ''
+  if (['ESTADOS UNIDOS','ESTADOS UNIDOS DE AMERICA','EE.UU.','EEUU','USA','US'].includes(up)) return 'USA'
+  return up
+}
+
+function getPaisCodFromDir(d:any): string {
+  // lo más común en tu tabla:
+  if (d?.Pais_Cod) return normalizePais(d.Pais_Cod)
+  if (d?.Pais)     return normalizePais(d.Pais)
+  // tolerancia a variantes:
+  if (d?.pais)      return normalizePais(d.pais)
+  if (d?.pais_cod)  return normalizePais(d.pais_cod)
+  if (d?.PaisSAT?.id) return normalizePais(d.PaisSAT.id)
+  return ''
+}
+
+/** Devuelve true si la tarifa del viaje es internacional (USA en origen o destino) */
+async function isViajeInternacionalPorTarifa(v:any): Promise<boolean> {
+  const tInfo = tarifaMap.value[String(v?.Tarifa)]
+  if (!tInfo) return false
+  const [origen, destino] = await Promise.all([
+    fetchDirById(String(tInfo.origenccp || '')),
+    fetchDirById(String(tInfo.destinoccp || ''))
+  ])
+  const oPais = getPaisCodFromDir(origen)
+  const dPais = getPaisCodFromDir(destino)
+  return oPais === 'USA' || dPais === 'USA'
+}
 
 function getOperadorTelefono(operadorId: any): string {
   const op = operadoresSelect.value.find((oo:any) => String(oo.ItemId) === String(operadorId))
@@ -642,33 +693,33 @@ function validarViajeParaTimbrar(v:any) {
 async function validarViajeParaTimbrarCompleto(v:any) {
   const faltantes = validarViajeParaTimbrar(v)
 
-  const tipoTarifa = getTipoTarifaDeViaje(v)         // 'CCP' | 'FACTURA HB' | ...
-  const tipoRuta   = getTipoRutaDeViaje(v)           // 'NACIONAL' | 'INTERNACIONAL' | ...
+  const tipoTarifa = getTipoTarifaDeViaje(v)   // 'CCP' | 'FACTURA HB' | ...
+  const tipoRuta   = getTipoRutaDeViaje(v)     // 'NACIONAL' | 'INTERNACIONAL' | ...
 
-  // Regla de negocio:
-  // - CCP solo si Ruta es NACIONAL
-  // - FACTURA HB siempre permitido (y no requiere mercancías)
   if (tipoTarifa === 'CCP') {
-    if (tipoRuta !== 'NACIONAL') {
-      faltantes.push('Para timbrar con tarifa CCP, la Ruta debe ser NACIONAL')
+    // Antes solo NACIONAL; ahora permitimos también INTERNACIONAL
+    // si la tarifa (origen/destino) apunta a direcciones con Pais_Cod='USA'
+    const esInternacionalPorTarifa = await isViajeInternacionalPorTarifa(v)
+
+    if (!(tipoRuta === 'NACIONAL' || esInternacionalPorTarifa)) {
+      faltantes.push('Para timbrar con tarifa CCP: la Ruta debe ser NACIONAL o la tarifa debe involucrar USA (origen/destino).')
     }
   } else if (tipoTarifa === 'FACTURA HB') {
-    // HB no depende de mercancías
+    // HB siempre permitido, sin mercancías
     return faltantes
   } else {
-    // Otros tipos de tarifa no se pueden timbrar
     faltantes.push('La tarifa debe ser CCP o FACTURA HB')
   }
 
-  // Si ya hay faltantes (por ejemplo, ruta no NACIONAL), corta aquí
   if (faltantes.length) return faltantes
 
-  // CCP requiere mercancías
+  // CCP (nacional o internacional) requiere mercancías
   const count = await getMercanciasCount(Number(v.ItemId))
   if (count <= 0) faltantes.push('Al menos 1 mercancía')
 
   return faltantes
 }
+
 
 function getConfigVehicular(unidadId: any): string {
   const u = unidadesSelect.value.find((uu:any) => String(uu.ItemId) === String(unidadId))
