@@ -168,6 +168,27 @@
         </b-col>
       </b-row>
 
+      <!-- NUEVO: Impuestos -->
+      <b-row>
+        <b-col md="6">
+          <b-form-group label="IVA">
+            <b-form-select v-model.number="form.iva" :options="ivaOptions" />
+            <small class="text-muted d-block mt-1">
+              {{ form.iva === 16 ? 'Con IVA' : 'Sin IVA' }}
+            </small>
+          </b-form-group>
+        </b-col>
+
+        <b-col md="6">
+          <b-form-group label="Retención de IVA">
+            <b-form-select v-model.number="form.ret" :options="retOptions" />
+            <small class="text-muted d-block mt-1">
+              {{ form.ret === 4 ? 'Con Retención' : 'Sin Retención' }}
+            </small>
+          </b-form-group>
+        </b-col>
+      </b-row>
+
       <!-- Observaciones con pares campo:valor -->
       <b-form-group>
         <div class="d-flex align-items-center justify-content-between">
@@ -252,6 +273,16 @@ const isRabonDinamico = ref(false)
 const razonesSociales = ref<any[]>([])
 const direcciones = ref<any[]>([])
 
+/* ===== Impuestos (combos) ===== */
+const ivaOptions = [
+  { value: 16, text: 'Con IVA (16%)' },
+  { value: 0,  text: 'Sin IVA (0%)'  },
+]
+const retOptions = [
+  { value: 4, text: 'Con Retención (4%)' },
+  { value: 0, text: 'Sin Retención (0%)' },
+]
+
 /* ===== Maps/Options ===== */
 const rsMap = computed<Record<string, string>>(() =>
   razonesSociales.value.reduce((acc: Record<string,string>, r:any) => {
@@ -289,18 +320,28 @@ const headers: Header[] = [
   { text: 'Moneda', value: 'moneda', sortable: true },
   { text: 'Tarifa', value: 'tipo_tarifa', sortable: true },
   { text: 'Cobro', value: 'tipo_cobro', sortable: true },
+  { text: 'IVA', value: 'IvaTxt', sortable: true },          // NUEVO
+  { text: 'Ret.', value: 'RetTxt', sortable: true },          // NUEVO
   { text: '$ 3.5', value: 'PrecioFleteTresCinco', sortable: true },
   { text: '$ Rabón', value: 'PrecioFleteRabon', sortable: true },
 ]
 
 const itemsTabla = computed(() => {
-  return tarifas.value.map(t => ({
-    ...t,
-    ItemId: Number(t.ItemId ?? 0), // normaliza
-    RazonSocialTxt: rsMap.value[String(t.RazonSocial)] || '',
-    origenccpTxt: dirMap.value[String(t.origenccp)] || '',
-    destinoccpTxt: dirMap.value[String(t.destinoccp)] || '',
-  }))
+  return tarifas.value.map(t => {
+    const ivaNum = Number(t.iva ?? t.IVA ?? t.porcentaje_iva ?? 16)
+    const retNum = Number(t.ret ?? t.RET ?? t.porcentaje_retencion_iva ?? 4)
+    const IvaTxt = ivaNum === 16 ? 'Con IVA' : 'Sin IVA'
+    const RetTxt = retNum === 4 ? 'Con Retención' : 'Sin Retención'
+    return {
+      ...t,
+      ItemId: Number(t.ItemId ?? 0),
+      RazonSocialTxt: rsMap.value[String(t.RazonSocial)] || '',
+      origenccpTxt: dirMap.value[String(t.origenccp)] || '',
+      destinoccpTxt: dirMap.value[String(t.destinoccp)] || '',
+      IvaTxt,
+      RetTxt,
+    }
+  })
 })
 
 const rowClass = (row:any) =>
@@ -335,6 +376,8 @@ const form = reactive({
   tipo_tarifa: '',
   tipo_cobro: '',
   moneda: 'Peso Mexicano',
+  iva: 16,   // NUEVO (default)
+  ret: 4,    // NUEVO (default)
   observaciones: ''
 })
 
@@ -418,7 +461,7 @@ function placeCaretEnd(el:HTMLElement) {
   sel?.addRange(range)
 }
 
-/* ===== CRUD ===== */
+/* ===== Endpoints ===== */
 const epReadTarifas   = (rutaId:string) => `${ruta_backend}/api/tarifas/read?ruta=${encodeURIComponent(rutaId)}&cliente=${clienteId.value}`
 const epInsertTarifa  = `${ruta_backend}/api/tarifas/insert`
 const epUpdateTarifa  = `${ruta_backend}/api/tarifas/update`
@@ -428,6 +471,7 @@ const epReadCliente   = (id:string) => `${ruta_backend}/api/clientes/read/${enco
 const epReadRS        = (cliente:string) => `${ruta_backend}/api/razones_sociales/read?clienteId=${encodeURIComponent(cliente)}`
 const epReadDir       = (cliente:string) => `${ruta_backend}/api/direcciones/read?clienteId=${encodeURIComponent(cliente)}`
 
+/* ===== Cargas ===== */
 async function cargarCatalogosCliente() {
   if (!clienteId.value) { razonesSociales.value=[]; direcciones.value=[]; return }
   try {
@@ -457,6 +501,7 @@ async function cargarTarifas() {
   tarifas.value = Array.isArray(data.response) ? data.response : []
 }
 
+/* ===== CRUD ===== */
 function agregarTarifa() {
   form.ItemId = 0
   form.Cliente = clienteId.value || ''
@@ -475,6 +520,9 @@ function agregarTarifa() {
   form.tipo_cobro = tiposCobro[0]
   form.moneda = 'Peso Mexicano'
 
+  form.iva = 16           // default
+  form.ret = 4            // default
+
   form.observaciones = ''
   parseObservaciones(form.observaciones)
   modalEditar.value = true
@@ -487,6 +535,10 @@ function editarTarifaSeleccionada() {
   const isDin = (v:any) => String(v ?? '').trim().toUpperCase() === 'DINAMICO'
   isTresCincoDinamico.value = isDin(t.PrecioFleteTresCinco)
   isRabonDinamico.value     = isDin(t.PrecioFleteRabon)
+
+  // Normaliza IVA/RET al abrir
+  const ivaNum = Number(t.iva ?? t.IVA ?? t.porcentaje_iva ?? 16)
+  const retNum = Number(t.ret ?? t.RET ?? t.porcentaje_retencion_iva ?? 4)
 
   Object.assign(form, {
     ItemId: Number(t.ItemId),
@@ -501,6 +553,8 @@ function editarTarifaSeleccionada() {
     tipo_tarifa: t.tipo_tarifa || tiposTarifa[0],
     tipo_cobro: t.tipo_cobro || tiposCobro[0],
     moneda: t.moneda || 'Peso Mexicano',
+    iva: Number.isFinite(ivaNum) ? ivaNum : 16,
+    ret: Number.isFinite(retNum) ? retNum : 4,
     observaciones: t.observaciones || ''
   })
 
@@ -541,6 +595,10 @@ async function handleSubmit() {
     return alert('Precio Flete RABON debe ser numérico o marcar Dinámico.')
   }
 
+  // Asegura tipos numéricos para enviar
+  form.iva = Number(form.iva)
+  form.ret = Number(form.ret)
+
   const url = form.ItemId === 0 ? epInsertTarifa : epUpdateTarifa
   const res = await fetch(url, {
     method: 'POST',
@@ -552,7 +610,6 @@ async function handleSubmit() {
   if (!data.error) {
     if (form.ItemId === 0) {
       const insertedId = Number(data.inserted || data.insertedId || 0)
-      // normaliza a número > 0 si viene válido
       const newItem = { ...form, ItemId: insertedId > 0 ? insertedId : 0 }
       tarifas.value.push(newItem)
     } else {
