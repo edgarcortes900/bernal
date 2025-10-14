@@ -2,58 +2,57 @@
   <b-form @submit.prevent="guardarViaje">
     <!-- Cliente -->
     <b-form-group label="Cliente">
-      <b-form-select
-        :key="keys.clientes"
+      <ChoicesSelect
+        id="vx-cliente"
+        :key="`cliente-${keys.clientes}`"
         v-model="form.Cliente"
-        :options="clientesSelect"
-        value-field="ItemId"
-        text-field="Nombre"
+        :options="clientesOptionsSorted"
+        :choice-options="choicesCfg"
+        label="Selecciona un cliente"
         @change="onClienteChange"
       />
     </b-form-group>
 
     <!-- Razón Social -->
     <b-form-group label="Razón Social (Cliente Fiscal)">
-      <b-form-select
-        :key="keys.rs"
+      <ChoicesSelect
+        id="vx-rs"
+        :key="`rs-${keys.rs}`"
         v-model="form.RazonSocial"
-        :options="razonesSocialesOptions"
-        value-field="ItemId"
-        text-field="__label"
+        :options="razonesSocialesOptionsSorted"
+        :choice-options="choicesCfg"
         :disabled="!form.Cliente"
+        label="Selecciona una razón social"
         @change="onRazonSocialChange"
       />
     </b-form-group>
 
     <!-- Ruta -->
     <b-form-group label="Ruta">
-      <b-form-select
-        :key="keys.rutas"
+      <ChoicesSelect
+        id="vx-ruta"
+        :key="`ruta-${keys.rutas}`"
         v-model="form.Ruta"
-        :options="rutasOptionsFiltradas"
-        value-field="ItemId"
-        text-field="Nombre"
+        :options="rutasOptionsFiltradasSorted"
+        :choice-options="choicesCfg"
         :disabled="!form.Cliente"
+        label="Selecciona una ruta"
         @change="onRutaChange"
       />
     </b-form-group>
 
     <!-- Tarifa -->
     <b-form-group label="Tarifa (Origen CCP → Destino CCP)">
-      <b-form-select
-        :key="keys.tarifas"
+      <ChoicesSelect
+        id="vx-tarifa"
+        :key="`tarifa-${keys.tarifas}`"
         v-model="form.Tarifa"
-        :options="tarifasOptionsFiltradas"
+        :options="tarifasOptionsFiltradasSorted"
+        :choice-options="choicesCfg"
         :disabled="!form.Cliente || !form.Ruta"
+        label="Selecciona una tarifa"
         @change="onTarifaChange"
-      >
-        <template #first>
-          <b-form-select-option :value="''" disabled>Selecciona una tarifa</b-form-select-option>
-        </template>
-        <template #option="{ text }">
-          <span>{{ text }}</span>
-        </template>
-      </b-form-select>
+      />
       <small class="text-muted">
         La lista se filtra por Cliente, Ruta y Razón Social seleccionados
       </small>
@@ -62,31 +61,34 @@
     <b-row>
       <b-col md="6">
         <b-form-group label="Unidad">
-          <b-form-select
-            :key="keys.unidades"
+          <ChoicesSelect
+            id="vx-unidad"
+            :key="`unidad-${keys.unidades}`"
             v-model="form.Unidad"
-            :options="unidadesSelect"
-            value-field="ItemId"
-            text-field="NumUnidad"
+            :options="unidadesOptionsSorted"
+            :choice-options="choicesCfg"
             :disabled="unidadesSelect.length===0"
+            label="Selecciona una unidad"
           />
         </b-form-group>
       </b-col>
+
       <b-col md="6">
         <b-form-group label="Operador">
-          <b-form-select
-            :key="keys.operadores"
+          <ChoicesSelect
+            id="vx-operador"
+            :key="`operador-${keys.operadores}`"
             v-model="form.Operador"
-            :options="operadoresSelect"
-            value-field="ItemId"
-            text-field="Nombre"
+            :options="operadoresOptionsSorted"
+            :choice-options="choicesCfg"
             :disabled="operadoresSelect.length===0"
+            label="Selecciona un operador"
           />
         </b-form-group>
       </b-col>
     </b-row>
 
-    <!-- 🔹 Observaciones del viaje (prepayload) -->
+    <!-- Observaciones -->
     <b-form-group label="Observaciones del viaje (prepayload)">
       <b-form-textarea
         v-model="form.observaciones"
@@ -124,11 +126,9 @@
 
     <!-- ====================== DATOS ADUANEROS ====================== -->
     <b-card class="mt-3">
-      <template #header>
-        <div class="fw-bold">Datos aduaneros</div>
-      </template>
+      <template #header><div class="fw-bold">Datos aduaneros</div></template>
 
-      <div v-if="form.TranspInternac !== 'Sí'" class="text-muted">
+      <div v-if="form.TranspInternac !== 'SÍ'" class="text-muted">
         Este viaje es <b>nacional</b>. Los campos aduaneros no aplican.
       </div>
 
@@ -160,20 +160,15 @@
         <b-row>
           <b-col md="6">
             <b-form-group label="Régimen Aduanero">
-              <b-form-select
+              <ChoicesSelect
+                id="vx-regimen"
+                :key="`regimen-${keys.tarifas}-${form.EntradaSalidaMerc}`"
                 v-model="form.RegimenAduanero"
-                :options="regimenesOptions"
+                :options="regimenesOptionsSorted"
+                :choice-options="choicesCfg"
                 :disabled="regimenesLoading"
-              >
-                <template #first>
-                  <b-form-select-option :value="''" disabled>
-                    {{ regimenesLoading ? 'Cargando…' : (regimenesOptions.length ? 'Selecciona un régimen' : 'Sin resultados') }}
-                  </b-form-select-option>
-                </template>
-                <template #option="{ text }">
-                  <span>{{ text }}</span>
-                </template>
-              </b-form-select>
+                label="Selecciona un régimen"
+              />
               <small class="text-muted">
                 Filtrado por <b>impoexpo = {{ form.EntradaSalidaMerc }}</b>. Se muestra <code>value - texto</code> y se guarda <code>value</code>.
               </small>
@@ -182,20 +177,15 @@
 
           <b-col md="6">
             <b-form-group label="Tipo de Documento Aduanero">
-              <b-form-select
+              <ChoicesSelect
+                id="vx-documento"
+                :key="`documento-${keys.tarifas}`"
                 v-model="form.TipoDocumento"
-                :options="documentosOptions"
+                :options="documentosOptionsSorted"
+                :choice-options="choicesCfg"
                 :disabled="documentosLoading"
-              >
-                <template #first>
-                  <b-form-select-option :value="''" disabled>
-                    {{ documentosLoading ? 'Cargando…' : (documentosOptions.length ? 'Selecciona un documento' : 'Sin resultados') }}
-                  </b-form-select-option>
-                </template>
-                <template #option="{ text }">
-                  <span>{{ text }}</span>
-                </template>
-              </b-form-select>
+                label="Selecciona un documento"
+              />
               <small class="text-muted">
                 Default <b>02</b> (si existe). Se muestra <code>value - texto</code> y se guarda <code>value</code>.
               </small>
@@ -203,20 +193,18 @@
           </b-col>
 
           <b-col md="6">
-        <b-form-group label="Identificador Documento Aduanero">
-  <b-form-input
-    v-model="form.IdentDocAduanero"
-    maxlength="45"
-    placeholder="Se llena automáticamente al elegir Régimen"
-    readonly
-  />
-</b-form-group>
-
+            <b-form-group label="Identificador Documento Aduanero">
+              <b-form-input
+                v-model="form.IdentDocAduanero"
+                maxlength="45"
+                placeholder="Se llena automáticamente al elegir Régimen"
+                readonly
+              />
+            </b-form-group>
           </b-col>
         </b-row>
       </div>
     </b-card>
-    <!-- =========================================================== -->
 
     <div class="d-flex justify-content-end mt-3">
       <b-button variant="primary" @click="guardarViaje">Guardar</b-button>
@@ -233,14 +221,27 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch, toRaw } from 'vue'
 import TimbradoPrepayloadModal from './TimbradoPrepayloadModal.vue'
+import ChoicesSelect from '@/components/ChoicesSelect.vue'
 
-interface Props {
-  rutaBackend: string
-  usuarioActual: string
-  viaje?: any | null
-}
+type ChoiceOpt = { value: string | number; text: string }
+type ToastVariant = 'success' | 'danger' | 'info'
+type NotifyPayload = { message: string; variant?: ToastVariant; title?: string; delay?: number }
+
+const collator = new Intl.Collator('es', { numeric: true, sensitivity: 'base' })
+const byText = (a: ChoiceOpt, b: ChoiceOpt) => collator.compare(a.text || '', b.text || '')
+
+interface Props { rutaBackend: string; usuarioActual: string; viaje?: any | null }
 const props = defineProps<Props>()
-const emit  = defineEmits<{(e:'saved', v:any):void}>()
+const emit  = defineEmits<{(e:'saved', v:any):void; (e:'notify', n:NotifyPayload):void }>()
+
+/* helpers de notificación (se propagan hacia arriba para usar tus toasts) */
+function notify(message: string, variant: ToastVariant = 'info', title = 'Aviso', delay = 3000) {
+  emit('notify', { message, variant, title, delay })
+}
+const notifySuccess = (m:string, d?:number)=>notify(m,'success','Éxito',d)
+const notifyError   = (m:string, d?:number)=>notify(m,'danger','Error',d)
+const notifyInfo    = (m:string, d?:number)=>notify(m,'info','Información',d)
+const notifyWarn    = (m:string, d?:number)=>notify(m,'info','Atención',d)
 
 /* endpoints */
 const ep = {
@@ -261,8 +262,8 @@ const ep = {
 /* catálogos base */
 const clientesSelect = ref<any[]>([])
 const razonesSociales = ref<any[]>([])
-const direcciones = ref<any[]>([])               // carga por cliente (para etiquetas)
-const dirCacheById = reactive<Record<string, any>>({}) // 🔸 cache por ItemId (desde /read?ItemId=)
+const direcciones = ref<any[]>([])
+const dirCacheById = reactive<Record<string, any>>({})
 const rutas = ref<any[]>([])
 const tarifas = ref<any[]>([])
 const operadoresSelect = ref<any[]>([])
@@ -284,16 +285,18 @@ const dirMap = computed(() =>
     return acc
   }, {})
 )
-const razonesSocialesOptions = computed(()=> razonesSociales.value.map((r:any)=>({...r, __label: rsMap.value[String(r.ItemId)]})))
-const rutasOptionsFiltradas = computed(()=> !form.Cliente ? [] : rutas.value.filter((r:any)=> String(r.Cliente)===String(form.Cliente)))
-const tarifasOptionsFiltradas = computed(()=>{
-  const all = tarifas.value.map((t:any)=>({
+
+/* Tarifa filtrada (base) */
+const tarifasOptionsFiltradasBase = computed(() => {
+  const all = tarifas.value.map((t:any) => ({
     value: String(t.ItemId),
-    text: `${dirMap.value[String(t.origenccp)]||t.origenccp} → ${dirMap.value[String(t.destinoccp)]||t.destinoccp}`,
-    RazonSocial: String(t.RazonSocial || '')
+    text: `${dirMap.value[String(t.origenccp)] || t.origenccp} → ${dirMap.value[String(t.destinoccp)] || t.destinoccp}`,
+    RazonSocial: String(t.RazonSocial ?? '')
   }))
   if (!form.RazonSocial) return all
-  return all.filter(x=> x.RazonSocial === String(form.RazonSocial))
+  const rsSel = String(form.RazonSocial)
+  const filtered = all.filter(x => !x.RazonSocial || x.RazonSocial === rsSel)
+  return filtered.length ? filtered : all
 })
 
 /* form */
@@ -311,31 +314,26 @@ const form = reactive({
   TipoDocumento: '',
   IdentDocAduanero: ''
 })
-
 function nowYYYYMMDDhhmmss() {
   const d = new Date(), pad = (n:number)=>String(n).padStart(2,'0')
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-/* Cargas básicas */
-async function cargarClientes(){ try{ const j=await (await fetch(ep.readClientes)).json(); clientesSelect.value=j.response||[]; keys.clientes++ }catch{ clientesSelect.value=[] } }
-async function cargarRutas(){ try{ const j=await (await fetch(ep.readRutas)).json(); rutas.value=j.response||[]; keys.rutas++ }catch{ rutas.value=[] } }
-async function cargarOperadores(){ try{ const j=await (await fetch(ep.readOperadores)).json(); operadoresSelect.value=j.response||[]; keys.operadores++ }catch{ operadoresSelect.value=[] } }
-async function cargarUnidades(){ try{ const j=await (await fetch(ep.readUnidades)).json(); unidadesSelect.value=j.response||[]; keys.unidades++ }catch{ unidadesSelect.value=[] } }
-async function cargarRazonesSociales(c:string){ try{ const j=await (await fetch(ep.readRS(c))).json(); razonesSociales.value=j.response||[]; keys.rs++ }catch{ razonesSociales.value=[]; keys.rs++ } }
+/* Cargas */
+async function cargarClientes(){ try{ const j=await (await fetch(ep.readClientes)).json(); clientesSelect.value=j.response||[] }catch{ clientesSelect.value=[] } finally{ keys.clientes++ } }
+async function cargarRutas(){ try{ const j=await (await fetch(ep.readRutas)).json(); rutas.value=j.response||[] }catch{ rutas.value=[] } finally{ keys.rutas++ } }
+async function cargarOperadores(){ try{ const j=await (await fetch(ep.readOperadores)).json(); operadoresSelect.value=j.response||[] }catch{ operadoresSelect.value=[] } finally{ keys.operadores++ } }
+async function cargarUnidades(){ try{ const j=await (await fetch(ep.readUnidades)).json(); unidadesSelect.value=j.response||[] }catch{ unidadesSelect.value=[] } finally{ keys.unidades++ } }
+async function cargarRazonesSociales(c:string){ try{ const j=await (await fetch(ep.readRS(c))).json(); razonesSociales.value=j.response||[] }catch{ razonesSociales.value=[] } finally{ keys.rs++ } }
 async function cargarDireccionesCliente(c:string){ try{ const j=await (await fetch(ep.readDirCliente(c))).json(); direcciones.value=j.response||[] }catch{ direcciones.value=[] } }
 async function cargarTarifasRutaCliente(r:string,c:string){
-  tarifas.value=[]
+  tarifas.value = []; keys.tarifas++
   if(!r||!c) return
-  try{
-    const j=await (await fetch(ep.readTarifas(r,c))).json()
-    tarifas.value=j.response||[]
-  } finally {
-    applyAduanaDebounced()
-  }
+  try{ const j = await (await fetch(ep.readTarifas(r,c))).json(); tarifas.value = j.response || [] }
+  finally { keys.tarifas++ }
 }
 
-/* ============ Direcciones por ItemId (lo que pediste) ============ */
+/* Direcciones por ItemId */
 async function fetchDireccionById(id: string): Promise<any|null> {
   if (!id) return null
   const key = String(id)
@@ -346,18 +344,13 @@ async function fetchDireccionById(id: string): Promise<any|null> {
     const row = Array.isArray(j.response) ? (j.response[0] || null) : null
     if (row) dirCacheById[key] = row
     return row
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
-/* =========================================================
-   🧭 País desde direccionesenvioentrega (si existe)
-   ========================================================= */
+/* País helpers */
 function normalizePais(val: any): string {
-  const raw = String(val ?? '').trim()
-  const up  = raw.toUpperCase()
-  if (up === 'ESTADOS UNIDOS' || up === 'ESTADOS UNIDOS DE AMERICA' || up === 'EE.UU.' || up === 'EEUU') return 'USA'
+  const raw = String(val ?? '').trim(); const up  = raw.toUpperCase()
+  if (['ESTADOS UNIDOS','ESTADOS UNIDOS DE AMERICA','EE.UU.','EEUU','US','USA'].includes(up)) return 'USA'
   return up
 }
 function getPaisFromDEE(dee: any): string {
@@ -368,7 +361,7 @@ function getPaisFromDEE(dee: any): string {
   if (obj.Pais)     return normalizePais(obj.Pais)
   if (obj.pais)     return normalizePais(obj.pais)
   if (obj.pais_cod) return normalizePais(obj.pais_cod)
-  if (obj.PaisSAT && obj.PaisSAT.id) return normalizePais(obj.PaisSAT.id)
+  if (obj.PaisSAT?.id) return normalizePais(obj.PaisSAT.id)
   return ''
 }
 function getPaisDirect(d:any): string {
@@ -377,234 +370,135 @@ function getPaisDirect(d:any): string {
   if (d.Pais)     return normalizePais(d.Pais)
   if (d.pais)     return normalizePais(d.pais)
   if (d.pais_cod) return normalizePais(d.pais_cod)
-  if (d.PaisSAT && d.PaisSAT.id) return normalizePais(d.PaisSAT.id)
+  if (d.PaisSAT?.id) return normalizePais(d.PaisSAT.id)
   return ''
 }
-/** Primero intentamos direccionesenvioentrega; si no, país directo */
 function getPaisCod(d:any): string {
-    console.log("🚀 ~ getPaisCod ~ d:", d)
-    
   const dee = d?.Pais_Cod ?? d?.pais ?? d?.paiscod ?? d?.codpais ?? d?.cod_pais
   const fromDEE = getPaisFromDEE(dee)
   if (fromDEE) return fromDEE
   return getPaisDirect(d)
 }
 
-/* Debounce para recalcular tras cargas/cambios */
+/* Aduana desde tarifa */
 let tApply:any = null
-function applyAduanaDebounced(){
-  clearTimeout(tApply)
-  tApply = setTimeout(() => { aplicarLogicaAduaneraDesdeTarifa() }, 50)
-}
-
-/* 🔴 Usa /api/direcciones/read?ItemId=... para origen/destino */
+function applyAduanaDebounced(){ clearTimeout(tApply); tApply = setTimeout(() => { aplicarLogicaAduaneraDesdeTarifa() }, 50) }
 async function aplicarLogicaAduaneraDesdeTarifa() {
-  // reset por default si no hay tarifa
-  if (!form.Tarifa) {
-    form.TranspInternac = ''
-    form.EntradaSalidaMerc = ''
-    form.PaisOrigenDestino = ''
-    return
-  }
-
-  const tarifaSel = tarifas.value.find((t:any) => String(t.ItemId) === String(form.Tarifa))
-  if (!tarifaSel) return
-
-  const origenId  = String(tarifaSel.origenccp || '')
-  const destinoId = String(tarifaSel.destinoccp || '')
-
-  // Asegura que tenemos cada dirección por ItemId (con cache)
-  const [origen, destino] = await Promise.all([
-    fetchDireccionById(origenId),
-    fetchDireccionById(destinoId)
-  ])
-
-  const origenCode  = getPaisCod(origen)
-  console.log("🚀 ~ aplicarLogicaAduaneraDesdeTarifa ~ origenCode:", origenCode)
-  const destinoCode = getPaisCod(destino)
-  console.log("🚀 ~ aplicarLogicaAduaneraDesdeTarifa ~ destinoCode:", destinoCode)
-
-  const origenUSA  = origenCode == 'USA'
-  const destinoUSA = destinoCode == 'USA'
-  const esInternac = origenUSA || destinoUSA
-  console.log("🚀 ~ aplicarLogicaAduaneraDesdeTarifa ~ esInternac:", esInternac)
-
-  if (!esInternac) {
-    form.TranspInternac    = 'NO'
-    form.EntradaSalidaMerc = ''
-    form.PaisOrigenDestino = ''
-    return
-  }
-  form.TranspInternac = 'Sí'
-  form.ViaEntradaSalida = '01'
-  if (origenUSA) {
-    form.EntradaSalidaMerc = 'Entrada'
-    form.PaisOrigenDestino = 'USA'
-  } else if (destinoUSA) {
-    form.EntradaSalidaMerc = 'Salida'
-    form.PaisOrigenDestino = 'USA'
-  } else {
-    form.EntradaSalidaMerc = ''
-    form.PaisOrigenDestino = ''
-  }
+  if (!form.Tarifa) { form.TranspInternac = ''; form.EntradaSalidaMerc = ''; form.PaisOrigenDestino = ''; return }
+  const tarifaSel = tarifas.value.find((t:any) => String(t.ItemId) === String(form.Tarifa)); if (!tarifaSel) return
+  const [origen, destino] = await Promise.all([ fetchDireccionById(String(tarifaSel.origenccp||'')), fetchDireccionById(String(tarifaSel.destinoccp||'')) ])
+  const origenCode  = getPaisCod(origen); const destinoCode = getPaisCod(destino)
+  const origenUSA  = origenCode == 'USA'; const destinoUSA = destinoCode == 'USA'; const esInternac = origenUSA || destinoUSA
+  if (!esInternac) { form.TranspInternac='NO'; form.EntradaSalidaMerc=''; form.PaisOrigenDestino=''; return }
+  form.TranspInternac='SÍ'; form.ViaEntradaSalida='01'
+  if (origenUSA) { form.EntradaSalidaMerc='Entrada'; form.PaisOrigenDestino='USA' }
+  else if (destinoUSA) { form.EntradaSalidaMerc='Salida'; form.PaisOrigenDestino='USA' }
+  else { form.EntradaSalidaMerc=''; form.PaisOrigenDestino='' }
   ensureCatAduanaLoaded()
 }
 
-/* ===== Catálogos SAT: Regímenes / Documentos ===== */
+/* SAT */
 const regimenesLoading = ref(false)
 const documentosLoading = ref(false)
 const regimenesOptions = ref<{ value:string; text:string; impoexpo?:string }[]>([])
 const documentosOptions = ref<{ value:string; text:string }[]>([])
-
 async function fetchRegimenes() {
   regimenesLoading.value = true
   try {
-    const r = await fetch(ep.satRegimenes)
-    const j = await r.json()
+    const r = await fetch(ep.satRegimenes); const j = await r.json()
     const raw: any[] = Array.isArray(j.response) ? j.response : []
-    const mapped = raw.map(x => ({
-      value: String(x.value ?? x.id ?? ''),
-      text: `${String(x.value ?? '')} - ${String(x.texto ?? x.value ?? '')}`,
-      impoexpo: String(x.impoexpo ?? '').trim()
-    }))
+    const mapped = raw.map(x => ({ value: String(x.value ?? x.id ?? ''), text: `${String(x.value ?? '')} - ${String(x.texto ?? x.value ?? '')}`, impoexpo: String(x.impoexpo ?? '').trim() }))
     regimenesOptions.value = mapped.filter(m => !form.EntradaSalidaMerc || m.impoexpo === form.EntradaSalidaMerc)
-    if (form.RegimenAduanero && !regimenesOptions.value.some(o => o.value === form.RegimenAduanero)) {
-      form.RegimenAduanero = ''
-      form.IdentDocAduanero = ''
-    }
-  } catch {
-    regimenesOptions.value = []
-  } finally {
-    regimenesLoading.value = false
-  }
+    if (form.RegimenAduanero && !regimenesOptions.value.some(o => o.value === form.RegimenAduanero)) { form.RegimenAduanero=''; form.IdentDocAduanero='' }
+  } catch { regimenesOptions.value = [] } finally { regimenesLoading.value = false }
 }
 async function fetchDocumentos() {
   documentosLoading.value = true
   try {
-    const r = await fetch(ep.satDocumentos)
-    const j = await r.json()
+    const r = await fetch(ep.satDocumentos); const j = await r.json()
     const raw: any[] = Array.isArray(j.response) ? j.response : []
-    documentosOptions.value = raw.map(x => ({
-      value: String(x.value ?? x.id ?? ''),
-      text: `${String(x.value ?? '')} - ${String(x.texto ?? x.value ?? '')}`
-    }))
-    if (!form.TipoDocumento) {
-      const has02 = documentosOptions.value.find(d => d.value === '02')
-      if (has02) form.TipoDocumento = '02'
-    }
-  } catch {
-    documentosOptions.value = []
-  } finally {
-    documentosLoading.value = false
-  }
+    documentosOptions.value = raw.map(x => ({ value: String(x.value ?? x.id ?? ''), text: `${String(x.value ?? '')} - ${String(x.texto ?? x.value ?? '')}` }))
+    if (!form.TipoDocumento) { const has02 = documentosOptions.value.find(d => d.value === '02'); if (has02) form.TipoDocumento = '02' }
+  } catch { documentosOptions.value = [] } finally { documentosLoading.value = false }
 }
-async function ensureCatAduanaLoaded() {
-  if (form.TranspInternac == 'Sí') {
-    await Promise.all([fetchRegimenes(), fetchDocumentos()])
-  }
-}
+async function ensureCatAduanaLoaded() { if (form.TranspInternac == 'SÍ') await Promise.all([fetchRegimenes(), fetchDocumentos()]) }
 
-/* ===== Handlers ===== */
+/* Handlers */
 async function onClienteChange(){
   form.RazonSocial=''; form.Ruta=''; form.Tarifa=''
   form.TranspInternac=''; form.EntradaSalidaMerc=''; form.PaisOrigenDestino=''
   dirCacheByIdClear()
-  if (form.Cliente) {
-    await Promise.all([cargarRazonesSociales(form.Cliente), cargarDireccionesCliente(form.Cliente)])
-  }
+  keys.tarifas++          // limpia tarifas visualmente
+  keys.rutas++            // fuerza refresh del select de rutas
+  if (form.Cliente) await Promise.all([cargarRazonesSociales(form.Cliente), cargarDireccionesCliente(form.Cliente)])
   applyAduanaDebounced()
 }
 async function onRutaChange(){
   form.Tarifa=''
+  keys.tarifas++
   if (form.Ruta && form.Cliente) await cargarTarifasRutaCliente(form.Ruta, form.Cliente)
   applyAduanaDebounced()
 }
 function onRazonSocialChange(){
   if (form.Tarifa) {
-    const ok = tarifasOptionsFiltradas.value.some((t:any)=> String(t.value)===String(form.Tarifa))
+    const ok = tarifasOptionsFiltradasBase.value.some((t:any)=> String(t.value)===String(form.Tarifa))
     if (!ok) form.Tarifa=''
   }
+  keys.tarifas++
   applyAduanaDebounced()
 }
-function onTarifaChange(){
-  applyAduanaDebounced()
-}
-function dirCacheByIdClear(){
-  for (const k of Object.keys(dirCacheById)) delete dirCacheById[k]
-}
+function onTarifaChange(){ applyAduanaDebounced() }
+function dirCacheByIdClear(){ for (const k of Object.keys(dirCacheById)) delete dirCacheById[k] }
 
-/* Guardar */
+/* Guardar (con toasts del padre) */
 async function guardarViaje(){
   form.Fecha = nowYYYYMMDDhhmmss()
+  if (!form.Cliente) return notifyWarn('Selecciona un Cliente')
+  if (!form.Ruta) return notifyWarn('Selecciona una Ruta')
+  if (!form.RazonSocial) return notifyWarn('Selecciona una Razón Social')
+  if (!form.Tarifa) return notifyWarn('Selecciona una Tarifa')
 
-  if (!form.Cliente)     return alert('Selecciona un Cliente')
-  if (!form.Ruta)        return alert('Selecciona una Ruta')
-  if (!form.RazonSocial) return alert('Selecciona una Razón Social')
-  if (!form.Tarifa)      return alert('Selecciona una Tarifa')
-
-  // ✅ Solo si es NACIONAL limpiamos campos aduaneros
   if (form.TranspInternac === 'NO') {
-    form.ViaEntradaSalida = ''
-    form.RegimenAduanero = ''
-    form.TipoDocumento = ''
-    form.IdentDocAduanero = ''
-  } else {
-    // Internacional: si elige Régimen, el Identificador es obligatorio (lo espejamos con el watcher)
-    if (form.RegimenAduanero && !form.IdentDocAduanero) {
-      return alert('Captura Identificador de Documento Aduanero (requerido cuando eliges Régimen).')
-    }
+    form.ViaEntradaSalida=''; form.RegimenAduanero=''; form.TipoDocumento=''; form.IdentDocAduanero=''
+  } else if (form.RegimenAduanero && !form.IdentDocAduanero) {
+    return notifyWarn('Captura Identificador de Documento Aduanero (requerido cuando eliges Régimen).')
   }
 
-  // Payload plano (sin proxies reactivity)
   const raw = toRaw(form)
-  const payload = {
-    ...raw,
-    ItemId: Number(raw.ItemId || 0),
-    Cliente: String(raw.Cliente || ''),
-    Ruta: String(raw.Ruta || ''),
-    RazonSocial: String(raw.RazonSocial || ''),
-    Tarifa: String(raw.Tarifa || ''),
-    Unidad: String(raw.Unidad || ''),
-    Operador: String(raw.Operador || '')
-  }
-
+  const payload = { ...raw, ItemId: Number(raw.ItemId || 0), Cliente: String(raw.Cliente || ''), Ruta: String(raw.Ruta || ''), RazonSocial: String(raw.RazonSocial || ''), Tarifa: String(raw.Tarifa || ''), Unidad: String(raw.Unidad || ''), Operador: String(raw.Operador || '') }
   const url = payload.ItemId===0 ? ep.insertViaje : ep.updateViaje
-  const r = await fetch(url, {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json' },
-    body: JSON.stringify(payload)
-  })
-  const j = await r.json()
 
-  if (!j.error){
-    if (payload.ItemId===0) form.ItemId = j.inserted || j.insertedId || 0
-    alert('Viaje guardado correctamente.')
-    emit('saved', { ...payload, ItemId: form.ItemId })
-  } else {
-    alert(j.message || 'No se pudo guardar el viaje')
+  try {
+    const r = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload) })
+    const j = await r.json()
+    if (!j.error){
+      if (payload.ItemId===0) form.ItemId = j.inserted || j.insertedId || 0
+      notifySuccess('Viaje guardado correctamente.')
+      emit('saved', { ...payload, ItemId: form.ItemId })
+    } else {
+      notifyError(j.message || 'No se pudo guardar el viaje')
+    }
+  } catch (e:any) {
+    notifyError(e?.message || 'Error de red guardando el viaje')
   }
 }
-
-
 
 /* preload */
 onMounted(async ()=>{
   await Promise.all([cargarClientes(), cargarRutas(), cargarOperadores(), cargarUnidades()])
   if (props.viaje) {
     const v = props.viaje
-    form.ItemId = v.ItemId||0
-    form.Cliente = String(v.Cliente||'')
-    form.Ruta = String(v.Ruta||'')
-    form.RazonSocial = String(v.RazonSocial||'')
-    form.Tarifa = String(v.Tarifa||'')
+    form.ItemId = v.ItemId || 0
+    form.Cliente = String(v.Cliente || '')
+    form.Ruta = String(v.Ruta || '')
+    form.RazonSocial = String(v.RazonSocial || '')
+    form.Tarifa = String(v.Tarifa || '')
     form.Unidad = String(v.Unidad||'')
     form.Operador = String(v.Operador||'')
     form.EstatusViaje = Number(v.EstatusViaje||0)
     form.Activo = Number(v.Activo ?? 1)
     form.observaciones = v.observaciones || ''
     form.NumVale = v.NumVale || ''
-
-    // valores aduaneros ya guardados (no pisar)
     form.TranspInternac    = v.TranspInternac    ?? form.TranspInternac
     form.EntradaSalidaMerc = v.EntradaSalidaMerc ?? form.EntradaSalidaMerc
     form.PaisOrigenDestino = v.PaisOrigenDestino ?? form.PaisOrigenDestino
@@ -612,33 +506,94 @@ onMounted(async ()=>{
     form.RegimenAduanero   = v.RegimenAduanero   ?? form.RegimenAduanero
     form.TipoDocumento     = v.TipoDocumento     ?? form.TipoDocumento
     form.IdentDocAduanero  = v.IdentDocAduanero  ?? form.IdentDocAduanero
-
-    if (form.Cliente) await Promise.all([cargarRazonesSociales(form.Cliente), cargarDireccionesCliente(form.Cliente)])
-    if (form.Ruta && form.Cliente) await cargarTarifasRutaCliente(form.Ruta, form.Cliente)
   }
+  if (form.Cliente) await Promise.all([cargarRazonesSociales(form.Cliente), cargarDireccionesCliente(form.Cliente)])
+  if (form.Ruta && form.Cliente) await cargarTarifasRutaCliente(form.Ruta, form.Cliente)
   applyAduanaDebounced()
 })
 
-/* 🔹 Editor/observaciones */
+/* Editor/observaciones */
 const showObsEditor = ref(false)
 const tarifaObs = computed<string>(() => {
   const t = tarifas.value.find((tt:any) => String(tt.ItemId) === String(form.Tarifa))
   return typeof t?.observaciones === 'string' ? t.observaciones : ''
 })
 function usarObsTarifa(){ if (tarifaObs.value) form.observaciones = tarifaObs.value }
-function onObsSave(observacionesStr: string){
-  form.observaciones = observacionesStr || ''
-  showObsEditor.value = false
-}
+function onObsSave(observacionesStr: string){ form.observaciones = observacionesStr || ''; showObsEditor.value = false }
 
-/* Re-disparos defensivos */
+/* Re-disparos */
 watch(() => form.Tarifa, () => applyAduanaDebounced())
 watch(() => direcciones.value.length, () => applyAduanaDebounced(), { immediate: true })
-watch(() => tarifas.value.length, () => applyAduanaDebounced())
-watch(() => form.EntradaSalidaMerc, async () => { if (form.TranspInternac === 'Sí') await fetchRegimenes() })
-// Espejo: cuando cambie el Régimen Aduanero, reflejar el value en IdentDocAduanero
-watch(() => form.RegimenAduanero, (val) => {
-  form.IdentDocAduanero = val ? String(val) : ''
+watch(() => tarifas.value.length, () => {
+  if (!form.Tarifa) { keys.tarifas++; return }
+  const t = tarifas.value.find(tt => String(tt.ItemId) === String(form.Tarifa))
+  if (t) {
+    const nuevaRS = String(t.RazonSocial ?? '')
+    if (nuevaRS && nuevaRS !== String(form.RazonSocial ?? '')) { form.RazonSocial = nuevaRS; keys.rs++ }
+  }
+  keys.tarifas++; applyAduanaDebounced()
+})
+watch(() => form.RegimenAduanero, (val) => { form.IdentDocAduanero = val ? String(val) : '' })
+
+/* Choices config + opciones ordenadas (placeholder en creación) */
+const isCreateMode = computed(() => !props.viaje || !props.viaje.ItemId)
+function withPlaceholder(list: ChoiceOpt[], when: boolean, text: string): ChoiceOpt[] {
+  return when ? [{ value: '', text }, ...list] : list
+}
+const choicesCfg = { searchEnabled: true, shouldSort: false, shouldSortItems: false }
+
+const clientesOptionsSorted = computed<ChoiceOpt[]>(() => {
+  const base = (clientesSelect.value || [])
+    .map((c:any) => ({ value: String(c.ItemId), text: String(c.Nombre || c.ItemId) }))
+    .sort(byText)
+  return withPlaceholder(base, isCreateMode.value && !form.Cliente, 'Selecciona un cliente')
+})
+const razonesSocialesOptionsSorted = computed<ChoiceOpt[]>(() => {
+  const base = (razonesSociales.value || [])
+    .map((r:any) => ({ value: String(r.ItemId), text: rsMap.value[String(r.ItemId)] }))
+    .sort(byText)
+  return withPlaceholder(base, isCreateMode.value && !form.RazonSocial, 'Selecciona una razón social')
+})
+const rutasOptionsFiltradasSorted = computed<ChoiceOpt[]>(() => {
+  if (!form.Cliente) return []
+  const base = rutas.value
+    .filter((r:any) => String(r.Cliente) === String(form.Cliente))
+    .map((r:any) => ({ value: String(r.ItemId), text: String(r.Nombre || r.ItemId) }))
+    .sort(byText)
+  return withPlaceholder(base, isCreateMode.value && !form.Ruta, 'Selecciona una ruta')
+})
+const tarifasOptionsFiltradasSorted = computed<ChoiceOpt[]>(() => {
+  const base = (tarifasOptionsFiltradasBase.value || [])
+    .map((t:any) => ({ value: String(t.value), text: String(t.text) }))
+    .sort(byText)
+  return withPlaceholder(base, isCreateMode.value && !form.Tarifa, 'Selecciona una tarifa')
+})
+const unidadesOptionsSorted = computed<ChoiceOpt[]>(() => {
+  const base = (unidadesSelect.value || [])
+    .map((u:any) => ({ value: String(u.ItemId), text: String(u.NumUnidad || u.ItemId) }))
+    .sort(byText)
+  return withPlaceholder(base, isCreateMode.value && !form.Unidad, 'Selecciona una unidad')
+})
+const operadoresOptionsSorted = computed<ChoiceOpt[]>(() => {
+  const base = (operadoresSelect.value || [])
+    .map((o:any) => ({ value: String(o.ItemId), text: String(o.Nombre || o.ItemId) }))
+    .sort(byText)
+  return withPlaceholder(base, isCreateMode.value && !form.Operador, 'Selecciona un operador')
+})
+const regimenesOptionsSorted = computed<ChoiceOpt[]>(() => {
+  const base = (regimenesOptions.value || [])
+    .map(o => ({ value: o.value, text: o.text }))
+    .sort(byText)
+  return withPlaceholder(base, isCreateMode.value && !form.RegimenAduanero, 'Selecciona un régimen')
+})
+const documentosOptionsSorted = computed<ChoiceOpt[]>(() => {
+  const base = (documentosOptions.value || [])
+    .map(o => ({ value: o.value, text: o.text }))
+    .sort(byText)
+  return withPlaceholder(base, isCreateMode.value && !form.TipoDocumento, 'Selecciona un documento')
 })
 
+/* Refrescos defensivos extra para rutas */
+watch(() => form.Cliente, () => { keys.rutas++ })
+watch(() => rutas.value.length, () => { keys.rutas++ })
 </script>

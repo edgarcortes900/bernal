@@ -8,6 +8,7 @@
     @hide="onClose"
   >
     <b-tabs v-model="activeTab">
+      <!-- TAB: VIAJE -->
       <b-tab title="Datos del viaje" key="viaje">
         <GestionViajeForm
           :key="formKey"
@@ -18,7 +19,12 @@
         />
       </b-tab>
 
-      <b-tab v-if="modo!=='create' && viajeId" title="Mercancías" key="mercancias">
+      <!-- TAB: MERCANCÍAS (solo existe si ya hay viaje o se está editando) -->
+      <b-tab
+        v-if="modo !== 'create' && viajeId"
+        title="Mercancías"
+        key="mercancias"
+      >
         <GestionMercancias
           :ruta-backend="rutaBackend"
           :usuario-actual="usuarioActual"
@@ -51,7 +57,7 @@ const activeTab = ref<'viaje'|'mercancias'>('viaje')
 const modo = ref<'create'|'edit'|'mercancias'>('create')
 const viajeId = ref<number|null>(null)
 
-/* Forzar remount del form cuando cambie viaje o lista */
+/* Forzar remount del form cuando cambie viaje/lista con el modal visible */
 const formKey = ref(0)
 
 const modalTitle = computed(()=>{
@@ -65,31 +71,26 @@ const viajeActual = computed(()=>{
   return props.viajes.find(v=> Number(v.ItemId)===Number(viajeId.value)) || null
 })
 
-/* Remount del form sólo si el modal está visible (evita reapertura vacía) */
 watch([() => viajeId.value, () => props.viajes], () => {
   if (show.value) formKey.value++
 })
 
-/* Abrir modal con guard para evitar doble apertura */
-async function open(m:'create'|'edit'|'mercancias', id?:number|null){
+/* Abrir modal: fija modo e id y coloca la pestaña adecuada */
+function open(m:'create'|'edit'|'mercancias', id?:number|null){
   if (show.value) return
   modo.value = m
   viajeId.value = id ?? null
   formKey.value++
   show.value = true
-  activeTab.value = m==='mercancias' ? 'mercancias' : 'viaje'
+  activeTab.value = (m==='mercancias' && !!viajeId.value) ? 'mercancias' : 'viaje'
 }
 defineExpose({ open })
 
-/* Al guardar, propaga y cierra limpiando estado (no abrir otro vacío) */
+/* Guardado: propaga y cierra limpiando estado */
 function onSaved(v:any){
   if (!viajeId.value) viajeId.value = Number(v.ItemId||0)
   emit('guardado', v)
-
-  show.value = false
-  activeTab.value = 'viaje'
-  modo.value = 'create'
-  viajeId.value = null
+  resetAndClose()
 }
 
 /* Pasarela de eventos de mercancías */
@@ -97,14 +98,19 @@ function onMercsUpdated(lista:any[]){
   if (viajeId.value) emit('mercancias-actualizadas', Number(viajeId.value), lista)
 }
 
-function onOk(evt?:any){
-  evt?.preventDefault?.()
+/* Cierre del modal */
+function onClose(){
+  resetState()
 }
 
-function onClose(){
+/* Helpers */
+function resetState(){
   activeTab.value = 'viaje'
   modo.value = 'create'
   viajeId.value = null
+}
+function resetAndClose(){
+  resetState()
   show.value = false
 }
 </script>
