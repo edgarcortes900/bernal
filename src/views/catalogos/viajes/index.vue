@@ -51,6 +51,12 @@
               <b-dropdown-item-button @click="openGestion('mercancias')">
                 <i class="ri-box-3-line me-1" /> Administrar mercancías
               </b-dropdown-item-button>
+
+              <!-- === IMPORTADOR DE MERCANCÍAS (INICIO) === -->
+              <b-dropdown-item-button :disabled="!viajeActivoId" @click="abrirImportadorMercancias">
+                <i class="ri-upload-2-line me-1" /> Importar mercancías (Excel)
+              </b-dropdown-item-button>
+              <!-- === IMPORTADOR DE MERCANCÍAS (FIN) === -->
             </b-dropdown>
 
             <!-- Menú Exportar -->
@@ -209,6 +215,52 @@
       </b-alert>
     </b-form>
   </b-modal>
+
+  <!-- === IMPORTADOR DE MERCANCÍAS (INICIO) === -->
+  <b-modal
+    v-model="showImportModal"
+    title="Importar mercancías desde Excel"
+    ok-title="Importar"
+    cancel-title="Cancelar"
+    :ok-disabled="!importForm.templateKey || !importForm.file || importLoading"
+    @ok="enviarImportacion"
+  >
+    <b-form @submit.prevent="enviarImportacion">
+      <b-form-group label="Plantilla / Layout">
+        <b-form-select
+          v-model="importForm.templateKey"
+          :options="importTemplatesOptions"
+          text-field="label"
+          value-field="key"
+          placeholder="Selecciona un layout…"
+        />
+        <small class="text-muted d-block mt-1">
+          Se enviará el archivo al endpoint correspondiente usando el viaje seleccionado.
+        </small>
+      </b-form-group>
+
+      <b-form-group label="Archivo Excel (.xlsx / .xls)">
+        <input
+          ref="fileInputRef"
+          type="file"
+          class="form-control"
+          accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          @change="onImportFileChange"
+        />
+        <small class="text-muted d-block mt-1">
+          Asegúrate de seleccionar la hoja/estructura correcta según el layout.
+        </small>
+      </b-form-group>
+
+      <b-alert v-if="importError" show variant="danger" class="mt-2">
+        {{ importError }}
+      </b-alert>
+      <b-alert v-if="importSuccess" show variant="success" class="mt-2">
+        {{ importSuccess }}
+      </b-alert>
+    </b-form>
+  </b-modal>
+  <!-- === IMPORTADOR DE MERCANCÍAS (FIN) === -->
 
   <!-- TOASTER -->
   <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1080;">
@@ -476,7 +528,7 @@ async function enviarPdfWhatsapp() {
     fd.append('filename', file.name)
     const resp = await fetch(epWAArchivo, { method: 'POST', body: fd })
     const j = await resp.json()
-    if (!resp.ok || j?.error) throw new Error(j?.message || 'No fue posible enviar el WhatsApp')
+    if (!resp.ok || j?.error) throw new Error(j?.message + j?.response || 'No fue posible enviar el WhatsApp')
     notifySuccess('Documento enviado por WhatsApp correctamente.')
     showWaModal.value = false
   } catch (e:any) {
@@ -527,7 +579,6 @@ const operadoresMap = computed(() => operadoresSelect.value.reduce((a:Record<str
 const unidadesMap = computed(() => unidadesSelect.value.reduce((a:Record<string,string>, u:any) => { a[String(u.ItemId)] = u.NumUnidad || String(u.ItemId); return a }, {}))
 
 /* Tabla */
-import type { Header } from 'vue3-easy-data-table'
 const headers: Header[] = [
   { text: 'Fecha', value: 'Fecha', sortable: true },
   { text: 'Planta', value: 'ClienteNombre', sortable: true },
@@ -703,19 +754,23 @@ async function validarViajeParaTimbrarCompleto(v:any) {
   const faltantes = validarViajeParaTimbrar(v)
   const tipoTarifa = getTipoTarifaDeViaje(v)
   const tipoRuta   = getTipoRutaDeViaje(v)
+
   if (tipoTarifa === 'CCP') {
     const esInternacionalPorTarifa = await isViajeInternacionalPorTarifa(v)
     if (!(tipoRuta === 'NACIONAL' || esInternacionalPorTarifa)) {
       faltantes.push('Para timbrar con tarifa CCP: la Ruta debe ser NACIONAL o la tarifa debe involucrar USA (origen/destino).')
     }
-  } else if (tipoTarifa !== 'FACTURA HB') {
+    const count = await getMercanciasCount(Number(v.ItemId))
+    if (count <= 0) faltantes.push('Al menos 1 mercancía (requerido para CCP)')
+  } else if (tipoTarifa === 'FACTURA HB') {
+    // HB no requiere mercancías
+  } else {
     faltantes.push('La tarifa debe ser CCP o FACTURA HB')
   }
-  if (faltantes.length) return faltantes
-  const count = await getMercanciasCount(Number(v.ItemId))
-  if (count <= 0) faltantes.push('Al menos 1 mercancía')
+
   return faltantes
 }
+
 function getConfigVehicular(unidadId: any): string {
   const u = unidadesSelect.value.find((uu:any) => String(uu.ItemId) === String(unidadId))
   const keys = ['ConfigVehicular','ConfiguracionVehicular','Configuracion','config_vehicular','Config','ConfiguracionSAT']
@@ -828,6 +883,86 @@ function exportarVisibleExcel() {
   const filename = `viajes_${f.getFullYear()}${String(f.getMonth()+1).padStart(2,'0')}${String(f.getDate()).padStart(2,'0')}_${String(f.getHours()).padStart(2,'0')}${String(f.getMinutes()).padStart(2,'0')}${String(f.getSeconds()).padStart(2,'0')}.xlsx`
   XLSX.writeFile(wb, filename, { bookType: 'xlsx' })
 }
+
+/* ======= IMPORTADOR DE MERCANCÍAS (INICIO) ======= */
+/** Mapa de layouts -> endpoint relativo */
+const IMPORTERS: Record<string, { label: string; path: string }> = {
+  'orafol-ups-export': { label: 'EXPORTACIÓN ORAFOL UPS', path: '/api/mercancias/import/orafol-ups' },
+  'milo-orafol-import': { label: 'IMPORTACIÓN MILO ORAFOL', path: '/api/mercancias/import/milo-orafol' },
+  'cooper-export':     { label: 'EXPORTACIÓN COOPERSTANDAR BAF', path: '/api/mercancias/export/cooper-export' },
+  'protrans-cooper':   { label: 'IMPORTACIÓN PROTRANS COOPER', path: '/api/mercancias/import/protrans-cooper' },
+  'konsberg-intran-nac': { label: 'KONSBERG INTRAN (Ruta Nacional)', path: '/api/mercancias/konsberg-intran' },
+  'prida-konsberg-import': { label: 'IMPORTACIÓN PRIDA KONSBERG', path: '/api/mercancias/import/konsberg-intran' },
+  'konsberg-prida-export': { label: 'EXPORTACIÓN KONSBERG PRIDA', path: '/api/mercancias/export/konsberg-prida' },
+  'yanfeng-export':    { label: 'EXPORTACIÓN YANFENG', path: '/api/mercancias/export/yanfeng' },
+  'yanfeng-import':    { label: 'IMPORTACIÓN YANFENG', path: '/api/mercancias/import/yanfeng' },
+  'yanfeng-mld-nac':   { label: 'NACIONAL YANFENG MLD', path: '/api/mercancias/nacional/yanfeng-mld' },
+}
+const importTemplatesOptions = Object.entries(IMPORTERS).map(([key, v]) => ({ key, label: v.label }))
+
+const showImportModal = ref(false)
+const importLoading = ref(false)
+const importError = ref('')
+const importSuccess = ref('')
+const importForm = ref<{ templateKey: string | null; file: File | null }>({ templateKey: null, file: null })
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+function abrirImportadorMercancias() {
+  if (!viajeActivoId.value) { notifyInfo('Selecciona un viaje primero.'); return }
+  importForm.value = { templateKey: null, file: null }
+  importError.value = ''
+  importSuccess.value = ''
+  nextTick(() => { if (fileInputRef.value) fileInputRef.value.value = '' as any })
+  showImportModal.value = true
+}
+function onImportFileChange(e: Event) {
+  importError.value = ''; importSuccess.value = ''
+  const input = e.target as HTMLInputElement
+  const f = input?.files?.[0] || null
+  if (!f) { importForm.value.file = null; return }
+  const ok = /\.(xlsx|xls)$/i.test(f.name)
+  if (!ok) { importError.value = 'El archivo debe ser .xlsx o .xls'; importForm.value.file = null; return }
+  importForm.value.file = f
+}
+async function enviarImportacion() {
+  try {
+    importError.value = ''; importSuccess.value = ''
+    if (!viajeActivoId.value) { importError.value = 'Selecciona un viaje.'; return }
+    if (!importForm.value.templateKey) { importError.value = 'Elige un layout.'; return }
+    if (!importForm.value.file) { importError.value = 'Adjunta un archivo Excel.'; return }
+
+    const sel = IMPORTERS[importForm.value.templateKey]
+    if (!sel) { importError.value = 'Layout desconocido.'; return }
+
+    importLoading.value = true
+    const fd = new FormData()
+    fd.append('file', importForm.value.file, importForm.value.file.name)
+
+    const url = `${ruta_backend}${sel.path}?viaje=${encodeURIComponent(String(viajeActivoId.value))}&usuario=${encodeURIComponent(usuarioActual)}`
+    const resp = await fetch(url, { method: 'POST', body: fd })
+    const j = await resp.json()
+
+    if (!resp.ok || j?.error) {
+      throw new Error(j?.message || 'No fue posible importar el archivo.')
+    }
+
+    importSuccess.value = j?.message || 'Mercancías importadas correctamente.'
+    notifySuccess(importSuccess.value)
+
+    // refrescar conteo
+    await getMercanciasCount(Number(viajeActivoId.value))
+    // Si quieres abrir el modal de mercancías al terminar:
+    // gestionModal.value?.open('mercancias', viajeActivoId.value!)
+
+  } catch (e:any) {
+    importError.value = e?.message || String(e)
+    notifyError(importError.value)
+    throw e
+  } finally {
+    importLoading.value = false
+  }
+}
+/* ======= IMPORTADOR DE MERCANCÍAS (FIN) ======= */
 </script>
 
 <style scoped>

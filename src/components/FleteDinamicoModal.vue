@@ -20,7 +20,7 @@
             autocomplete="off"
           />
         </b-input-group>
-        <small class="text-muted">Ingresa el monto del flete (MXN).</small>
+        <small class="text-muted">Ingresa el monto del flete.</small>
       </b-form-group>
     </b-form>
   </b-modal>

@@ -128,11 +128,11 @@
     <b-card class="mt-3">
       <template #header><div class="fw-bold">Datos aduaneros</div></template>
 
-      <div v-if="form.TranspInternac !== 'SÍ'" class="text-muted">
+      <div v-if="form.TranspInternac !== 'SÍ'" key="aduana-off" class="text-muted">
         Este viaje es <b>nacional</b>. Los campos aduaneros no aplican.
       </div>
 
-      <div v-else>
+      <div v-else key="aduana-on">
         <b-row>
           <b-col md="3">
             <b-form-group label="Transporte Internacional">
@@ -160,14 +160,13 @@
         <b-row>
           <b-col md="6">
             <b-form-group label="Régimen Aduanero">
-              <ChoicesSelect
-                id="vx-regimen"
-                :key="`regimen-${keys.tarifas}-${form.EntradaSalidaMerc}`"
+              <b-form-select
                 v-model="form.RegimenAduanero"
                 :options="regimenesOptionsSorted"
-                :choice-options="choicesCfg"
                 :disabled="regimenesLoading"
-                label="Selecciona un régimen"
+                value-field="value"
+                text-field="text"
+                class="form-select"
               />
               <small class="text-muted">
                 Filtrado por <b>impoexpo = {{ form.EntradaSalidaMerc }}</b>. Se muestra <code>value - texto</code> y se guarda <code>value</code>.
@@ -177,14 +176,13 @@
 
           <b-col md="6">
             <b-form-group label="Tipo de Documento Aduanero">
-              <ChoicesSelect
-                id="vx-documento"
-                :key="`documento-${keys.tarifas}`"
+              <b-form-select
                 v-model="form.TipoDocumento"
                 :options="documentosOptionsSorted"
-                :choice-options="choicesCfg"
                 :disabled="documentosLoading"
-                label="Selecciona un documento"
+                value-field="value"
+                text-field="text"
+                class="form-select"
               />
               <small class="text-muted">
                 Default <b>02</b> (si existe). Se muestra <code>value - texto</code> y se guarda <code>value</code>.
@@ -234,13 +232,12 @@ interface Props { rutaBackend: string; usuarioActual: string; viaje?: any | null
 const props = defineProps<Props>()
 const emit  = defineEmits<{(e:'saved', v:any):void; (e:'notify', n:NotifyPayload):void }>()
 
-/* helpers de notificación (se propagan hacia arriba para usar tus toasts) */
+/* notificaciones */
 function notify(message: string, variant: ToastVariant = 'info', title = 'Aviso', delay = 3000) {
   emit('notify', { message, variant, title, delay })
 }
 const notifySuccess = (m:string, d?:number)=>notify(m,'success','Éxito',d)
 const notifyError   = (m:string, d?:number)=>notify(m,'danger','Error',d)
-const notifyInfo    = (m:string, d?:number)=>notify(m,'info','Información',d)
 const notifyWarn    = (m:string, d?:number)=>notify(m,'info','Atención',d)
 
 /* endpoints */
@@ -259,7 +256,7 @@ const ep = {
   satDocumentos:  `${props.rutaBackend}/api/catalogos-sat?modelo=documentos_aduaneros`,
 }
 
-/* catálogos base */
+/* catálogos */
 const clientesSelect = ref<any[]>([])
 const razonesSociales = ref<any[]>([])
 const direcciones = ref<any[]>([])
@@ -270,20 +267,26 @@ const operadoresSelect = ref<any[]>([])
 const unidadesSelect   = ref<any[]>([])
 
 const keys = reactive({ clientes:0, rs:0, rutas:0, tarifas:0, unidades:0, operadores:0 })
+const initFromPropsOnce = ref(false)
+
+/* helpers de “remontaje” por select */
+function refreshClienteSelectOnce(){ keys.clientes++ }
+function refreshUnidadSelectOnce(){ keys.unidades++ }
+function refreshOperadorSelectOnce(){ keys.operadores++ }
 
 const rsMap = computed(() =>
   razonesSociales.value.reduce((acc:any, r:any)=>{
     const label = `${r.IdContpaq||''}${r.IdContpaq?' - ':''}${r.Nombre||''}`.trim()
     acc[String(r.ItemId)] = label || String(r.ItemId)
     return acc
-  }, {})
+  }, {} as Record<string,string>)
 )
 const dirMap = computed(() =>
   direcciones.value.reduce((acc:any, d:any)=>{
     const label = `${d.CodigoCliente||''}${d.CodigoCliente?' - ':''}${d.Nombre||''}`.trim()
     acc[String(d.ItemId)] = label || String(d.ItemId)
     return acc
-  }, {})
+  }, {} as Record<string,string>)
 )
 
 /* Tarifa filtrada (base) */
@@ -320,17 +323,51 @@ function nowYYYYMMDDhhmmss() {
 }
 
 /* Cargas */
-async function cargarClientes(){ try{ const j=await (await fetch(ep.readClientes)).json(); clientesSelect.value=j.response||[] }catch{ clientesSelect.value=[] } finally{ keys.clientes++ } }
+async function cargarClientes(){
+  try{
+    const j = await (await fetch(ep.readClientes)).json()
+    clientesSelect.value = j.response || []
+  }catch{
+    clientesSelect.value = []
+  } finally {
+    keys.clientes++
+    if (form.Cliente) refreshClienteSelectOnce()
+  }
+}
 async function cargarRutas(){ try{ const j=await (await fetch(ep.readRutas)).json(); rutas.value=j.response||[] }catch{ rutas.value=[] } finally{ keys.rutas++ } }
-async function cargarOperadores(){ try{ const j=await (await fetch(ep.readOperadores)).json(); operadoresSelect.value=j.response||[] }catch{ operadoresSelect.value=[] } finally{ keys.operadores++ } }
-async function cargarUnidades(){ try{ const j=await (await fetch(ep.readUnidades)).json(); unidadesSelect.value=j.response||[] }catch{ unidadesSelect.value=[] } finally{ keys.unidades++ } }
+async function cargarOperadores(){
+  try{
+    const j=await (await fetch(ep.readOperadores)).json()
+    operadoresSelect.value=j.response||[]
+  }catch{
+    operadoresSelect.value=[]
+  } finally {
+    keys.operadores++
+    if (form.Operador) refreshOperadorSelectOnce()
+  }
+}
+async function cargarUnidades(){
+  try{
+    const j=await (await fetch(ep.readUnidades)).json()
+    unidadesSelect.value=j.response||[]
+  }catch{
+    unidadesSelect.value=[]
+  } finally {
+    keys.unidades++
+    if (form.Unidad) refreshUnidadSelectOnce()
+  }
+}
 async function cargarRazonesSociales(c:string){ try{ const j=await (await fetch(ep.readRS(c))).json(); razonesSociales.value=j.response||[] }catch{ razonesSociales.value=[] } finally{ keys.rs++ } }
 async function cargarDireccionesCliente(c:string){ try{ const j=await (await fetch(ep.readDirCliente(c))).json(); direcciones.value=j.response||[] }catch{ direcciones.value=[] } }
 async function cargarTarifasRutaCliente(r:string,c:string){
   tarifas.value = []; keys.tarifas++
   if(!r||!c) return
-  try{ const j = await (await fetch(ep.readTarifas(r,c))).json(); tarifas.value = j.response || [] }
-  finally { keys.tarifas++ }
+  try{
+    const j = await (await fetch(ep.readTarifas(r,c))).json()
+    tarifas.value = j.response || []
+  } finally {
+    keys.tarifas++
+  }
 }
 
 /* Direcciones por ItemId */
@@ -380,6 +417,20 @@ function getPaisCod(d:any): string {
   return getPaisDirect(d)
 }
 
+/* === Filtrado impo/expo === */
+function nrm(s:any){return String(s??'').trim().toUpperCase().normalize('NFD').replace(/\p{Diacritic}/gu,'')}
+function mapToken(s:any){const x=nrm(s); if(['ENTRADA','IMPO','IMPORTACION','IMPORTACIÓN','I','IN'].includes(x))return 'ENTRADA'; if(['SALIDA','EXPO','EXPORTACION','EXPORTACIÓN','E','OUT'].includes(x))return 'SALIDA'; return ''}
+function impoexpoMatches(filtroUI:any, raw:any): boolean {
+  const want = mapToken(filtroUI)
+  if (!want) return true
+  if (raw == null || raw === '') return true
+  const hay = nrm(raw)
+  const syns = (want==='ENTRADA')
+    ? ['ENTRADA','IMPO','IMPORTACION','IMPORTACIÓN']
+    : ['SALIDA','EXPO','EXPORTACION','EXPORTACIÓN']
+  return syns.some(t => hay.includes(t))
+}
+
 /* Aduana desde tarifa */
 let tApply:any = null
 function applyAduanaDebounced(){ clearTimeout(tApply); tApply = setTimeout(() => { aplicarLogicaAduaneraDesdeTarifa() }, 50) }
@@ -402,34 +453,75 @@ const regimenesLoading = ref(false)
 const documentosLoading = ref(false)
 const regimenesOptions = ref<{ value:string; text:string; impoexpo?:string }[]>([])
 const documentosOptions = ref<{ value:string; text:string }[]>([])
+
 async function fetchRegimenes() {
   regimenesLoading.value = true
   try {
     const r = await fetch(ep.satRegimenes); const j = await r.json()
     const raw: any[] = Array.isArray(j.response) ? j.response : []
-    const mapped = raw.map(x => ({ value: String(x.value ?? x.id ?? ''), text: `${String(x.value ?? '')} - ${String(x.texto ?? x.value ?? '')}`, impoexpo: String(x.impoexpo ?? '').trim() }))
-    regimenesOptions.value = mapped.filter(m => !form.EntradaSalidaMerc || m.impoexpo === form.EntradaSalidaMerc)
-    if (form.RegimenAduanero && !regimenesOptions.value.some(o => o.value === form.RegimenAduanero)) { form.RegimenAduanero=''; form.IdentDocAduanero='' }
-  } catch { regimenesOptions.value = [] } finally { regimenesLoading.value = false }
+
+    const mapped = raw.map(x => ({
+      value: String(x.value ?? ''),
+      text: `${String(x.value ?? '')} - ${String(x.texto ?? '')}`,
+      impoexpo: String(x.impoexpo ?? '').trim()
+    }))
+
+    const filtro = form.EntradaSalidaMerc
+    if (!filtro) {
+      regimenesOptions.value = mapped
+    } else {
+      const filtered = mapped.filter(m => impoexpoMatches(filtro, m.impoexpo))
+      regimenesOptions.value = filtered.length ? filtered : mapped
+    }
+
+    if (form.RegimenAduanero && !regimenesOptions.value.some(o => o.value === form.RegimenAduanero)) {
+      form.RegimenAduanero=''; form.IdentDocAduanero=''
+    }
+  } catch {
+    regimenesOptions.value = []
+  } finally {
+    regimenesLoading.value = false
+  }
 }
+
 async function fetchDocumentos() {
   documentosLoading.value = true
   try {
     const r = await fetch(ep.satDocumentos); const j = await r.json()
     const raw: any[] = Array.isArray(j.response) ? j.response : []
-    documentosOptions.value = raw.map(x => ({ value: String(x.value ?? x.id ?? ''), text: `${String(x.value ?? '')} - ${String(x.texto ?? x.value ?? '')}` }))
-    if (!form.TipoDocumento) { const has02 = documentosOptions.value.find(d => d.value === '02'); if (has02) form.TipoDocumento = '02' }
-  } catch { documentosOptions.value = [] } finally { documentosLoading.value = false }
+
+    const mapped = raw.map(x => ({
+      value: String(x.value ?? ''),
+      text: `${String(x.value ?? '')} - ${String(x.texto ?? '')}`
+    }))
+    documentosOptions.value = mapped
+
+    if (!form.TipoDocumento) {
+      const has02 = documentosOptions.value.find(d => d.value === '02')
+      if (has02) form.TipoDocumento = '02'
+    } else if (!documentosOptions.value.some(d => d.value === form.TipoDocumento)) {
+      form.TipoDocumento = ''
+    }
+  } catch {
+    documentosOptions.value = []
+  } finally {
+    documentosLoading.value = false
+  }
 }
-async function ensureCatAduanaLoaded() { if (form.TranspInternac == 'SÍ') await Promise.all([fetchRegimenes(), fetchDocumentos()]) }
+
+async function ensureCatAduanaLoaded() {
+  if (form.TranspInternac == 'SÍ') {
+    await Promise.all([fetchRegimenes(), fetchDocumentos()])
+  }
+}
 
 /* Handlers */
 async function onClienteChange(){
   form.RazonSocial=''; form.Ruta=''; form.Tarifa=''
   form.TranspInternac=''; form.EntradaSalidaMerc=''; form.PaisOrigenDestino=''
   dirCacheByIdClear()
-  keys.tarifas++          // limpia tarifas visualmente
-  keys.rutas++            // fuerza refresh del select de rutas
+  keys.tarifas++
+  keys.rutas++
   if (form.Cliente) await Promise.all([cargarRazonesSociales(form.Cliente), cargarDireccionesCliente(form.Cliente)])
   applyAduanaDebounced()
 }
@@ -444,13 +536,12 @@ function onRazonSocialChange(){
     const ok = tarifasOptionsFiltradasBase.value.some((t:any)=> String(t.value)===String(form.Tarifa))
     if (!ok) form.Tarifa=''
   }
-  keys.tarifas++
   applyAduanaDebounced()
 }
 function onTarifaChange(){ applyAduanaDebounced() }
 function dirCacheByIdClear(){ for (const k of Object.keys(dirCacheById)) delete dirCacheById[k] }
 
-/* Guardar (con toasts del padre) */
+/* Guardar */
 async function guardarViaje(){
   form.Fecha = nowYYYYMMDDhhmmss()
   if (!form.Cliente) return notifyWarn('Selecciona un Cliente')
@@ -465,7 +556,16 @@ async function guardarViaje(){
   }
 
   const raw = toRaw(form)
-  const payload = { ...raw, ItemId: Number(raw.ItemId || 0), Cliente: String(raw.Cliente || ''), Ruta: String(raw.Ruta || ''), RazonSocial: String(raw.RazonSocial || ''), Tarifa: String(raw.Tarifa || ''), Unidad: String(raw.Unidad || ''), Operador: String(raw.Operador || '') }
+  const payload = {
+    ...raw,
+    ItemId: Number(raw.ItemId || 0),
+    Cliente: String(raw.Cliente || ''),
+    Ruta: String(raw.Ruta || ''),
+    RazonSocial: String(raw.RazonSocial || ''),
+    Tarifa: String(raw.Tarifa || ''),
+    Unidad: String(raw.Unidad || ''),
+    Operador: String(raw.Operador || '')
+  }
   const url = payload.ItemId===0 ? ep.insertViaje : ep.updateViaje
 
   try {
@@ -486,7 +586,8 @@ async function guardarViaje(){
 /* preload */
 onMounted(async ()=>{
   await Promise.all([cargarClientes(), cargarRutas(), cargarOperadores(), cargarUnidades()])
-  if (props.viaje) {
+
+  if (!initFromPropsOnce.value && props.viaje) {
     const v = props.viaje
     form.ItemId = v.ItemId || 0
     form.Cliente = String(v.Cliente || '')
@@ -506,7 +607,14 @@ onMounted(async ()=>{
     form.RegimenAduanero   = v.RegimenAduanero   ?? form.RegimenAduanero
     form.TipoDocumento     = v.TipoDocumento     ?? form.TipoDocumento
     form.IdentDocAduanero  = v.IdentDocAduanero  ?? form.IdentDocAduanero
+
+    initFromPropsOnce.value = true
+    // Forzar que los selects pinten el valor en edición
+    if (form.Cliente)  refreshClienteSelectOnce()
+    if (form.Unidad)   refreshUnidadSelectOnce()
+    if (form.Operador) refreshOperadorSelectOnce()
   }
+
   if (form.Cliente) await Promise.all([cargarRazonesSociales(form.Cliente), cargarDireccionesCliente(form.Cliente)])
   if (form.Ruta && form.Cliente) await cargarTarifasRutaCliente(form.Ruta, form.Cliente)
   applyAduanaDebounced()
@@ -525,26 +633,37 @@ function onObsSave(observacionesStr: string){ form.observaciones = observaciones
 watch(() => form.Tarifa, () => applyAduanaDebounced())
 watch(() => direcciones.value.length, () => applyAduanaDebounced(), { immediate: true })
 watch(() => tarifas.value.length, () => {
-  if (!form.Tarifa) { keys.tarifas++; return }
+  if (!form.Tarifa) return
   const t = tarifas.value.find(tt => String(tt.ItemId) === String(form.Tarifa))
   if (t) {
     const nuevaRS = String(t.RazonSocial ?? '')
     if (nuevaRS && nuevaRS !== String(form.RazonSocial ?? '')) { form.RazonSocial = nuevaRS; keys.rs++ }
   }
-  keys.tarifas++; applyAduanaDebounced()
+  applyAduanaDebounced()
 })
 watch(() => form.RegimenAduanero, (val) => { form.IdentDocAduanero = val ? String(val) : '' })
 
-/* Choices config + opciones ordenadas (placeholder en creación) */
+/* Choices config + opciones ordenadas */
 const isCreateMode = computed(() => !props.viaje || !props.viaje.ItemId)
 function withPlaceholder(list: ChoiceOpt[], when: boolean, text: string): ChoiceOpt[] {
   return when ? [{ value: '', text }, ...list] : list
 }
-const choicesCfg = { searchEnabled: true, shouldSort: false, shouldSortItems: false }
+const choicesCfg = {
+  searchEnabled: true,
+  shouldSort: false,
+  shouldSortItems: false,
+  allowHTML: true,
+}
 
+/* Cliente → etiqueta "Código - Nombre" si hay código */
 const clientesOptionsSorted = computed<ChoiceOpt[]>(() => {
   const base = (clientesSelect.value || [])
-    .map((c:any) => ({ value: String(c.ItemId), text: String(c.Nombre || c.ItemId) }))
+    .map((c:any) => {
+      const codigo = c.Codigo || c.CodigoCliente || c.Clave || ''
+      const nombre = c.Nombre || String(c.ItemId)
+      const text = codigo ? `${codigo} - ${nombre}` : nombre
+      return { value: String(c.ItemId), text }
+    })
     .sort(byText)
   return withPlaceholder(base, isCreateMode.value && !form.Cliente, 'Selecciona un cliente')
 })
@@ -593,7 +712,7 @@ const documentosOptionsSorted = computed<ChoiceOpt[]>(() => {
   return withPlaceholder(base, isCreateMode.value && !form.TipoDocumento, 'Selecciona un documento')
 })
 
-/* Refrescos defensivos extra para rutas */
+/* Refrescos extra para rutas */
 watch(() => form.Cliente, () => { keys.rutas++ })
 watch(() => rutas.value.length, () => { keys.rutas++ })
 </script>

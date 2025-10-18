@@ -47,8 +47,9 @@
           @update:sort-by="sortBy = $event"
           @update:sort-type="sortType = $event"
         >
+          <!-- Respeta tu formato original: slot 'item-*' exponiendo variable 'item' -->
           <template v-for="col in columnasSeleccionables" #[`item-${col}`]="item">
-            <div @click="seleccionarRuta(item)">{{ item[col] }}</div>
+            <div @click="seleccionarRuta(item)">{{ getCellFromSlot(item, col) }}</div>
           </template>
         </EasyDataTable>
       </UIComponentCard>
@@ -247,12 +248,25 @@ const filteredItems = computed(() => {
   const base = itemsFiltradosPorCliente.value
   if (!searchValue.value) return base
   const f = searchField.value
-  const val = searchValue.value.toLowerCase()
+  const val = String(searchValue.value).toLowerCase()
   return base.filter(item => String(item[f] ?? '').toLowerCase().includes(val))
 })
 
-function seleccionarRuta(item: any) {
-  rutaActivaId.value = rutaActivaId.value === item.ItemId ? null : item.ItemId
+// === Helpers de slots seguros ===
+function getRowFromSlot(slotObj: any) {
+  // Soporta { row }, { item }, o la fila directa
+  return slotObj?.row ?? slotObj?.item ?? slotObj ?? null
+}
+function getCellFromSlot(slotObj: any, col: string) {
+  const row = getRowFromSlot(slotObj)
+  return row?.[col] ?? ''
+}
+
+function seleccionarRuta(itemLike: any) {
+  const row = getRowFromSlot(itemLike)
+  const id = row?.ItemId
+  if (id == null) return
+  rutaActivaId.value = rutaActivaId.value === id ? null : id
 }
 
 function agregarRuta() {
@@ -302,22 +316,30 @@ async function eliminarRutaSeleccionada() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ItemId: rutaActivaId.value, elimino: usuario?.userData?.Username || 'SISTEMA' })
   })
+  // Reemplazo inmutable para asegurar reactividad
   items.value = items.value.filter(i => i.ItemId !== rutaActivaId.value)
   rutaActivaId.value = null
 }
 
 async function handleSubmit() {
-  const valid = await v$.value.$validate()
-  if (!valid) return
-
+  // Si viene cliente por props, setearlo ANTES de validar para que el required pase.
   if (props.clienteId) {
     rutaActual.Cliente = String(props.clienteId)
   }
 
+  const valid = await v$.value.$validate()
+  if (!valid) return
+
+  // Normalizar nombres a partir de IDs por si los watchers no se disparan
+  const origenNombre = nombreCiudadById(rutaActual.CiudadOrigenId)
+  const destinoNombre = nombreCiudadById(rutaActual.CiudadDestinoId)
+
   const payload: any = {
     ...rutaActual,
-    ciudad_origen: rutaActual.Origen,
-    ciudad_destino: rutaActual.Destino,
+    Origen: origenNombre || rutaActual.Origen,
+    Destino: destinoNombre || rutaActual.Destino,
+    ciudad_origen: origenNombre || rutaActual.Origen,
+    ciudad_destino: destinoNombre || rutaActual.Destino,
     ciudad_origen_id: rutaActual.CiudadOrigenId ?? null,
     ciudad_destino_id: rutaActual.CiudadDestinoId ?? null,
   }
@@ -341,16 +363,23 @@ async function handleSubmit() {
   if (!data.error) {
     if (rutaActual.ItemId === 0) {
       const insertedId = data.inserted || data.insertedId || data?.response?.insertedId || 0
-      items.value.push({ ...payload, ItemId: insertedId })
+      const nuevo = { ...payload, ItemId: insertedId }
+      items.value = [...items.value, nuevo] // inmutable
       rutaActual.ItemId = insertedId
     } else {
       const index = items.value.findIndex(i => i.ItemId === rutaActual.ItemId)
       if (index !== -1) {
-        items.value[index] = { ...items.value[index], ...payload }
+        const actualizado = { ...items.value[index], ...payload }
+        items.value = [
+          ...items.value.slice(0, index),
+          actualizado,
+          ...items.value.slice(index + 1),
+        ]
       }
     }
-    // modalEditar.value = false
-    // activeTab.value = 'tarifas'
+
+        // Cerrar el modal al terminar guardado correctamente
+    modalEditar.value = false
   }
 }
 
@@ -375,7 +404,7 @@ function exportarVisibleExcel() {
     return { wch: width }
   })
   // @ts-ignore
-  ws['!cols'] = colWidths
+  ;(ws as any)['!cols'] = colWidths
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Rutas visibles')
   const fecha = new Date()
