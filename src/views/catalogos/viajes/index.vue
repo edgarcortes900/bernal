@@ -896,7 +896,7 @@ const IMPORTERS: Record<string, { label: string; path: string }> = {
   'konsberg-prida-export': { label: 'EXPORTACIÓN KONSBERG PRIDA', path: '/api/mercancias/export/konsberg-prida' },
   'yanfeng-export':    { label: 'EXPORTACIÓN YANFENG', path: '/api/mercancias/export/yanfeng' },
   'yanfeng-import':    { label: 'IMPORTACIÓN YANFENG', path: '/api/mercancias/import/yanfeng' },
-  'yanfeng-mld-nac':   { label: 'NACIONAL YANFENG MLD', path: '/api/mercancias/nacional/yanfeng-mld' },
+  'yanfeng-mld-nac':   { label: 'NACIONAL YANFENG MLD', path: '/api/mercancias/yanfeng-mld' },
 }
 const importTemplatesOptions = Object.entries(IMPORTERS).map(([key, v]) => ({ key, label: v.label }))
 
