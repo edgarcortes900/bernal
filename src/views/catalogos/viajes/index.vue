@@ -592,6 +592,7 @@ const headers: Header[] = [
   { text: 'Folio', value: 'folio_documento', sortable: true },
   { text: 'Factura', value: 'Factura', sortable: false },
   { text: 'Timbrado', value: 'timbrado', sortable: true },
+  { text: 'CCP', value: 'ItemId', sortable: true },
 ]
 function getTipoRutaDeViaje(v: any): string { return rutasTipoMap.value[String(v?.Ruta)] || '' }
 const itemsTabla = computed(() => viajes.value.map(v => {
