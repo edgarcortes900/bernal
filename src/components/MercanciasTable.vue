@@ -17,7 +17,7 @@
       small
       bordered
       responsive
-      :busy="loading || runningClientValidation"
+      :busy="loading || (shouldRunClientValidation && runningClientValidation)"
     >
       <!-- CELDAS CON PINTADO DE ERROR -->
       <template #cell(BienesTransp)="{ item, value, index }">
@@ -46,7 +46,8 @@
 
       <template #table-busy>
         <div class="text-center my-2">
-          <b-spinner small class="me-2" /> {{ runningClientValidation ? 'Validando catálogo…' : 'Cargando…' }}
+          <b-spinner small class="me-2" />
+          {{ (shouldRunClientValidation && runningClientValidation) ? 'Validando catálogo…' : 'Cargando…' }}
         </div>
       </template>
     </b-table>
@@ -59,7 +60,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch, onMounted } from 'vue'
-
+import { ruta_backend } from '@/helpers/api'
 /** ========= Tipos ========= */
 interface Warning {
   indice?: number;      // 1-based del backend
@@ -213,6 +214,11 @@ function backendWarningsForCell(field: Field, item:any, index:number): Warning[]
 
 /** ========= Validación cliente (fallback si no hay warnings) ========= */
 const runningClientValidation = ref(false)
+/* solo corre si: no hay warnings backend, validateClient=true y hay rutaBackend */
+const shouldRunClientValidation = computed(() =>
+  props.validateClient && (props.warnings?.length || 0) === 0 && !!ruta_backend
+)
+
 /* flags locales por ItemId o firma */
 const localFlags: Record<string, Partial<Record<Field, boolean>>> = reactive({})
 
@@ -225,80 +231,117 @@ const cacheFR = new Map<string, boolean>()           // digits -> exists?
 const cacheTM = new Map<string, boolean>()           // nrm(query) -> exists?
 
 const apiUrl = (modelo:string, q?:string) =>
-  props.rutaBackend + `/api/catalogos-sat?modelo=${encodeURIComponent(modelo)}` + (q ? `&q=${encodeURIComponent(q)}` : '')
+  ruta_backend + `/api/catalogos-sat?modelo=${encodeURIComponent(modelo)}` + (q ? `&q=${encodeURIComponent(q)}` : '')
 
-async function psExists(q:string): Promise<boolean> {
+/** devuelven true (existe), false (no existe), o null (desconocido/error) */
+async function psExists(q:string): Promise<boolean|null> {
   const k = nrm(q)
-  if (!k) return false
+  if (!k) return null
   if (cachePS.has(k)) return cachePS.get(k)!
-  const res = await fetch(apiUrl('productos_servicios', q))
-  const json = await res.json().catch(()=>({}))
-  const list:any[] = Array.isArray(json?.response) ? json.response : []
-  const hit = list.find(x =>
-    eqDigits(x?.id, q) || eqDigits(x?.value, q) || eqNrm(x?.value, q) || eqNrm(x?.text, q)
-  )
-  cachePS.set(k, !!hit)
-  return !!hit
+  try {
+    const res = await fetch(apiUrl('productos_servicios', q))
+    if (!res.ok) return null
+    const json = await res.json().catch(()=>null)
+    const list:any[] = Array.isArray(json?.response) ? json.response : []
+    const hit = list.find(x =>
+      eqDigits(x?.id, q) || eqDigits(x?.value, q) || eqNrm(x?.value, q) || eqNrm(x?.text, q)
+    )
+    const val = !!hit
+    cachePS.set(k, val)
+    return val
+  } catch {
+    return null
+  }
 }
 
-async function frExists(q:string): Promise<boolean> {
+async function frExists(q:string): Promise<boolean|null> {
   const digits = onlyDigits(q)
-  if (!digits) return false
+  if (!digits) return null
   if (cacheFR.has(digits)) return cacheFR.get(digits)!
-  const res = await fetch(apiUrl('fracciones_arancelarias', digits))
-  const json = await res.json().catch(()=>({}))
-  const list:any[] = Array.isArray(json?.response) ? json.response : []
-  const hit = list.find(x => eqDigits(x?.id, digits) || eqDigits(x?.value, digits))
-  cacheFR.set(digits, !!hit)
-  return !!hit
+  try {
+    const res = await fetch(apiUrl('fracciones_arancelarias', digits))
+    if (!res.ok) return null
+    const json = await res.json().catch(()=>null)
+    const list:any[] = Array.isArray(json?.response) ? json.response : []
+    const hit = list.find(x => eqDigits(x?.id, digits) || eqDigits(x?.value, digits))
+    const val = !!hit
+    cacheFR.set(digits, val)
+    return val
+  } catch {
+    return null
+  }
 }
 
-async function tmExists(q:string): Promise<boolean> {
+async function tmExists(q:string): Promise<boolean|null> {
   const k = nrm(q)
-  if (!k) return false
+  if (!k) return null
   if (cacheTM.has(k)) return cacheTM.get(k)!
-  // cat completo (como comentaste): sin q
-  const res = await fetch(apiUrl('tipos_materia'))
-  const json = await res.json().catch(()=>({}))
-  const list:any[] = Array.isArray(json?.response) ? json.response : []
-  const hit = list.find(x => eqNrm(x?.texto ?? x?.text ?? x?.value, q) || eqNrm(x?.value, q))
-  cacheTM.set(k, !!hit)
-  return !!hit
+  try {
+    // cat completo (así lo expusiste)
+    const res = await fetch(apiUrl('tipos_materia'))
+    if (!res.ok) return null
+    const json = await res.json().catch(()=>null)
+    const list:any[] = Array.isArray(json?.response) ? json.response : []
+    const hit = list.find(x => {
+      const txt = x?.texto ?? x?.text ?? x?.value
+      return eqNrm(txt, q) || eqNrm(x?.value, q)
+    })
+    const val = !!hit
+    cacheTM.set(k, val)
+    return val
+  } catch {
+    return null
+  }
 }
 
 async function validateClientIfNeeded() {
-  if (!props.validateClient) return
-  // si ya vienen warnings del backend, no hace falta
-  const hasBackendWarns = (props.warnings?.length || 0) > 0
-  if (hasBackendWarns) return
+  if (!shouldRunClientValidation.value) return
+
 
   runningClientValidation.value = true
   try {
-    // valida cada ítem con cache (rápido)
+    // reinicia flags locales (evita “residuos” al cambiar items)
+    Object.keys(localFlags).forEach(k => delete localFlags[k])
+
     for (let i = 0; i < props.items.length; i++) {
       const it = props.items[i]
       const key = itemKey(it, i)
       if (!localFlags[key]) localFlags[key] = {}
 
-      // BienesTransp
-      const bt = String(it?.BienesTransp ?? '')
-      localFlags[key].BienesTransp = bt ? !(await psExists(bt)) : true
+      // BienesTransp: si vacío, NO lo marques en rojo aquí
+      const bt = String(it?.BienesTransp ?? '').trim()
+      if (bt) {
+        const exists = await psExists(bt)
+        localFlags[key].BienesTransp = (exists === false)
+      } else {
+        localFlags[key].BienesTransp = false
+      }
 
-      // Fracción
-      const fr = String(it?.FraccArancelaria ?? '')
-      localFlags[key].FraccArancelaria = fr ? !(await frExists(fr)) : false // si está vacío, no pintes
+      // Fracción: si vacío, NO lo marques en rojo aquí
+      const fr = String(it?.FraccArancelaria ?? '').trim()
+      if (fr) {
+        const exists = await frExists(fr)
+        localFlags[key].FraccArancelaria = (exists === false)
+      } else {
+        localFlags[key].FraccArancelaria = false
+      }
 
-      // TipoMateria
-      const tm = String(it?.TipoMateria ?? '')
-      localFlags[key].TipoMateria = tm ? !(await tmExists(tm)) : false
+      // TipoMateria: si vacío, NO lo marques en rojo aquí
+      const tm = String(it?.TipoMateria ?? '').trim()
+      if (tm) {
+        const exists = await tmExists(tm)
+        localFlags[key].TipoMateria = (exists === false)
+      } else {
+        localFlags[key].TipoMateria = false
+      }
     }
   } finally {
     runningClientValidation.value = false
   }
 }
 
-/** revalida cuando cambian items */
-watch(() => props.items, () => validateClientIfNeeded(), { deep:true, immediate:true })
+/** revalida cuando cambian items o la ruta backend */
+watch([() => props.items, () => ruta_backend], () => validateClientIfNeeded(), { deep:true, immediate:true })
 onMounted(() => validateClientIfNeeded())
 
 /** ========= Agregador final de warnings ========= */
